@@ -3,6 +3,8 @@
 Application de calcul mental : carrés de 1 à 20 et tables de 2 à 9.
 Entraînement adaptatif, chrono 60 s et fiche de révision.
 
+En ligne : https://ludwigundsuzanne.github.io/automath/
+
 C'est une application web installable (PWA) : ouverte dans Chrome sur Android,
 « Installer l'application » l'ajoute à l'écran d'accueil, en plein écran et hors ligne.
 

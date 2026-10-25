@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Automath</title>
+<meta name="description" content="Entraînement au calcul mental : carrés de 1 à 20 et tables de 2 à 9.">
+<meta name="theme-color" content="#EEF2F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1621" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700;800&family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+</head>
+<body>
+<style>
+/* Layout : une colonne étroite façon carnet quadrillé, pavé numérique en bas, sous le pouce. */
+:root {
+  --bg: #EEF2F5;
+  --grid: #DFE6EC;
+  --paper: #FFFFFF;
+  --ink: #132033;
+  --muted: #5B6B80;
+  --line: #D3DCE5;
+  --accent: #2846C8;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DCE3FB;
+  --mark: #F2C94C;
+  --good: #1F8A5B;
+  --good-soft: #D7F0E3;
+  --bad: #C2412D;
+  --bad-soft: #F8DDD7;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif;
+  --f-num: "Atkinson Hyperlegible Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1621; --grid: #16202D; --paper: #172130; --ink: #E6EDF5; --muted: #93A3B8;
+    --line: #2A3748; --accent: #8AA2FF; --accent-ink: #0F1621; --accent-soft: #22305A; --mark: #D9B23A;
+    --good: #4CC38A; --good-soft: #173829; --bad: #F07A66; --bad-soft: #3D1F1A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1621; --grid: #16202D; --paper: #172130; --ink: #E6EDF5; --muted: #93A3B8;
+  --line: #2A3748; --accent: #8AA2FF; --accent-ink: #0F1621; --accent-soft: #22305A; --mark: #D9B23A;
+  --good: #4CC38A; --good-soft: #173829; --bad: #F07A66; --bad-soft: #3D1F1A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 24px;
+}
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+.top { display: flex; flex-direction: column; gap: 10px; }
+.brand-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brand {
+  font-family: var(--f-display); font-weight: 800; font-size: clamp(21px, 6.2vw, 28px); line-height: 1;
+  margin: 0; letter-spacing: -0.02em; text-wrap: balance;
+}
+.brand .amp { color: var(--accent); }
+
+.topic { display: inline-flex; border: 1px solid var(--line); background: var(--paper); border-radius: 99px; padding: 3px; }
+.topic button { border: 0; background: transparent; border-radius: 99px; padding: 6px 12px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.topic button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.tabs {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 4px;
+}
+.tabs button {
+  border: 0; background: transparent; border-radius: 9px; padding: 10px 6px;
+  font-weight: 600; font-size: 15px; color: var(--muted);
+}
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chip {
+  flex: 1 0 28px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--paper);
+  font-family: var(--f-num); font-weight: 700; font-size: 15px; color: var(--muted); padding: 0 6px;
+}
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
+.chip.all { font-family: var(--f-body); font-size: 13px; flex: 0 0 auto; padding: 0 10px; }
+
+.view { display: flex; flex-direction: column; gap: 12px; }
+
+/* Niveaux de maîtrise, communs aux pastilles et aux cases de table */
+.lv { border: 1px dashed var(--line); background: var(--paper); color: var(--muted); }
+.lv.l0 { border-style: solid; border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+.lv.l1 { border: 1px solid transparent; background: color-mix(in srgb, var(--accent) 18%, var(--paper)); color: var(--ink); }
+.lv.l2 { border: 1px solid transparent; background: color-mix(in srgb, var(--accent) 35%, var(--paper)); color: var(--ink); }
+.lv.l3 { border: 1px solid transparent; background: color-mix(in srgb, var(--accent) 55%, var(--paper)); color: var(--accent-ink); }
+.lv.l4 { border: 1px solid transparent; background: color-mix(in srgb, var(--accent) 78%, var(--paper)); color: var(--accent-ink); }
+.lv.l5 { border: 1px solid transparent; background: var(--accent); color: var(--accent-ink); }
+.lv.now { outline: 2px solid var(--ink); outline-offset: 1px; }
+.lv.off { opacity: .3; }
+
+/* Bandeau de maîtrise des carrés */
+.mastery { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.tile {
+  font-family: var(--f-num); font-size: 12px; font-weight: 700; text-align: center;
+  padding: 5px 0; border-radius: 6px; font-variant-numeric: tabular-nums;
+}
+/* Carte de maîtrise des tables : 8 × 8 */
+.tgrid { display: grid; grid-template-columns: 14px repeat(8, 1fr); gap: 2px 3px; }
+.tgrid .th { font-family: var(--f-num); font-size: 10px; color: var(--muted); text-align: center; line-height: 10px; }
+.tgrid .tc { height: 10px; border-radius: 2px; }
+
+.meta {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; color: var(--muted);
+}
+.meta b { color: var(--ink); font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+
+/* Carte question */
+.card {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  transition: background-color .2s, border-color .2s;
+}
+.card.good { background: var(--good-soft); border-color: var(--good); }
+.card.bad { background: var(--bad-soft); border-color: var(--bad); }
+.card.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.q { font-family: var(--f-num); font-weight: 800; font-size: clamp(64px, 20vw, 104px); line-height: 1; letter-spacing: -0.03em; white-space: nowrap; }
+.q sup { font-size: 0.42em; color: var(--accent); vertical-align: 0.95em; margin-left: 2px; }
+.q .x { color: var(--accent); font-weight: 400; margin: 0 0.12em; font-size: 0.8em; }
+.ans {
+  font-family: var(--f-num); font-weight: 700; font-size: 40px; line-height: 1;
+  min-width: 4.2ch; height: 58px; display: flex; align-items: center; justify-content: center;
+  border-bottom: 3px solid var(--accent); padding: 0 8px; font-variant-numeric: tabular-nums;
+}
+.ans:empty::before { content: "?"; color: var(--line); }
+.ans .reveal { color: var(--good); }
+.ans s { color: var(--bad); margin-right: 10px; font-size: 0.7em; }
+.hint { font-size: 13px; color: var(--muted); text-align: center; min-height: 1.5em; margin: 0; }
+.hint b { color: var(--good); font-family: var(--f-num); }
+.hint b.slow { color: var(--bad); }
+
+/* Pavé numérique */
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pad button {
+  height: 60px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper);
+  font-family: var(--f-num); font-size: 26px; font-weight: 700;
+  box-shadow: 0 2px 0 var(--line);
+  transition: transform .05s, background-color .1s;
+}
+.pad button:active { transform: translateY(2px); box-shadow: none; background: var(--accent-soft); }
+.pad .k-ok { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 60%, #000); font-family: var(--f-body); font-size: 18px; }
+.pad .k-del { font-size: 20px; color: var(--muted); }
+
+.big-btn {
+  height: 60px; border-radius: 12px; border: 0; background: var(--accent); color: var(--accent-ink);
+  font-weight: 700; font-size: 18px; width: 100%;
+}
+.ghost-btn {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 10px; padding: 10px 14px;
+  font-weight: 600; font-size: 14px;
+}
+
+/* Explication après une erreur, et fiche de révision */
+.explain, .detail {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 16px; display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center;
+}
+.explain h3, .detail h3 { margin: 0 0 6px; font-family: var(--f-display); font-size: 20px; line-height: 1.1; }
+.tip { font-size: 15px; min-width: 0; }
+.tip p { margin: 0 0 6px; }
+.tip .calc { font-family: var(--f-num); font-weight: 700; font-size: 15px; background: var(--bg); border-radius: 8px; padding: 6px 8px; display: inline-block; overflow-wrap: anywhere; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+.viz {
+  display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 1px;
+  width: min(140px, calc(var(--cols) * 14px)); aspect-ratio: var(--cols) / var(--rows); max-width: 100%;
+}
+.viz span { border-radius: 1px; }
+.viz .a, .c-a { background: color-mix(in srgb, var(--accent) 70%, var(--paper)); }
+.viz .b, .c-b { background: color-mix(in srgb, var(--accent) 28%, var(--paper)); }
+.viz .c, .c-c { background: var(--mark); }
+
+/* Chrono */
+.panel {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 20px 16px; display: flex; flex-direction: column; gap: 14px;
+}
+.panel h2 { margin: 0; font-family: var(--f-display); font-size: 24px; line-height: 1.1; text-wrap: balance; }
+.panel p { margin: 0; color: var(--muted); }
+.stat-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.stat { flex: 1 1 90px; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.stat small { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.stat b { font-family: var(--f-num); font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; background: var(--mark); color: #132033; font-weight: 700; font-size: 13px; padding: 3px 8px; border-radius: 99px; }
+
+.timer { display: flex; align-items: center; gap: 12px; }
+.timer .bar { flex: 1; height: 10px; border-radius: 99px; background: var(--paper); border: 1px solid var(--line); overflow: hidden; }
+.timer .fill { height: 100%; width: 100%; background: var(--accent); transform-origin: left; }
+.timer .fill.low { background: var(--bad); }
+.timer b { font-family: var(--f-num); font-size: 20px; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.score-chip { font-family: var(--f-num); font-weight: 700; background: var(--paper); border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; }
+
+.misses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.misses li { font-family: var(--f-num); font-size: 15px; display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+.misses li span { color: var(--bad); }
+
+/* Révision des carrés */
+.sq-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (min-width: 480px) { .sq-list { grid-template-columns: repeat(5, 1fr); } }
+.sq {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 10px; padding: 8px 6px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative;
+}
+.sq[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sq .n { font-family: var(--f-num); font-size: 13px; color: var(--muted); }
+.sq .v { font-family: var(--f-num); font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }
+.sq .dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--line); }
+.sq .dot.l0 { background: var(--bad); border-color: var(--bad); }
+.sq .dot.l1, .sq .dot.l2 { background: color-mix(in srgb, var(--accent) 30%, var(--paper)); border-color: transparent; }
+.sq .dot.l3 { background: color-mix(in srgb, var(--accent) 60%, var(--paper)); border-color: transparent; }
+.sq .dot.l4, .sq .dot.l5 { background: var(--accent); border-color: var(--accent); }
+
+/* Révision des tables : la table de Pythagore */
+.rtable { display: grid; grid-template-columns: 22px repeat(8, 1fr); gap: 4px; }
+.rtable .th { font-family: var(--f-num); font-weight: 700; font-size: 13px; color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.rc {
+  height: 40px; border-radius: 8px; font-family: var(--f-num); font-weight: 700; font-size: 16px;
+  font-variant-numeric: tabular-nums; padding: 0;
+}
+.rc[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 1px; }
+.rnote { font-size: 13px; color: var(--muted); margin: 0; }
+
+.tricks { display: flex; flex-direction: column; gap: 10px; }
+.tricks h2 { margin: 6px 0 0; font-family: var(--f-display); font-size: 20px; }
+.trick { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
+.trick h3 { margin: 0 0 4px; font-size: 16px; }
+.trick p { margin: 0; font-size: 15px; color: var(--muted); max-width: 65ch; }
+.trick code { font-family: var(--f-num); font-weight: 700; color: var(--ink); background: var(--bg); padding: 1px 5px; border-radius: 5px; }
+
+.reset { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.danger { border-color: var(--bad); color: var(--bad); }
+
+.kbd-note { font-size: 12px; color: var(--muted); text-align: center; margin: 0; }
+@media (hover: none) { .kbd-note { display: none; } }
+
+@media (max-width: 380px) {
+  .explain, .detail { grid-template-columns: 1fr; justify-items: start; }
+  .pad button { height: 56px; }
+  .rc { font-size: 14px; height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand-row">
+      <h1 class="brand">Auto<span class="amp">math</span></h1>
+      <div class="topic" role="group" aria-label="Thème">
+        <button id="topic-sq" data-topic="sq" aria-pressed="true">Carrés</button>
+        <button id="topic-tb" data-topic="tb" aria-pressed="false">Tables</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Modes">
+      <button role="tab" id="tab-train" data-view="train" aria-selected="true">Entraînement</button>
+      <button role="tab" id="tab-chrono" data-view="chrono" aria-selected="false">Chrono 60 s</button>
+      <button role="tab" id="tab-table" data-view="table" aria-selected="false">Révision</button>
+    </nav>
+    <div class="chips" id="chips" role="group" aria-label="Tables travaillées" hidden></div>
+  </header>
+
+  <!-- Entraînement adaptatif -->
+  <section class="view" id="v-train" role="tabpanel" aria-labelledby="tab-train">
+    <div id="mastery" aria-label="Niveau de maîtrise"></div>
+    <div class="meta">
+      <span>Série <b id="streak">0</b></span>
+      <span>Aujourd'hui <b id="today">0</b></span>
+      <span>Maîtrisés <b id="mastered">0</b>/<span id="total">20</span></span>
+    </div>
+    <div class="card" id="t-card">
+      <div class="q" id="t-q"></div>
+      <div class="ans" id="t-ans" aria-live="polite"></div>
+    </div>
+    <p class="hint" id="t-hint"></p>
+    <button class="big-btn" id="t-next" hidden>Continuer</button>
+    <div class="explain" id="t-explain" hidden aria-live="polite"></div>
+    <div class="pad" id="t-pad"></div>
+    <p class="kbd-note">Clavier : chiffres, Retour arrière pour effacer, Entrée pour valider ou continuer.</p>
+  </section>
+
+  <!-- Contre-la-montre -->
+  <section class="view" id="v-chrono" role="tabpanel" aria-labelledby="tab-chrono" hidden>
+    <div class="panel" id="c-start">
+      <h2 id="c-title">60 secondes, un maximum de carrés</h2>
+      <p>Les calculs que tu connais le moins reviennent plus souvent. Une erreur affiche la bonne réponse puis passe à la suite.</p>
+      <div class="stat-row">
+        <div class="stat"><small>Record</small><b id="c-best">0</b></div>
+        <div class="stat"><small>Dernière partie</small><b id="c-last">–</b></div>
+      </div>
+      <button class="big-btn" id="c-go">Démarrer</button>
+    </div>
+
+    <div class="view" id="c-run" hidden>
+      <div class="timer">
+        <div class="bar"><div class="fill" id="c-fill"></div></div>
+        <b id="c-sec">60</b>
+        <span class="score-chip" id="c-score">0 ✓</span>
+      </div>
+      <div class="card" id="c-card">
+        <div class="q" id="c-q"></div>
+        <div class="ans" id="c-ans" aria-live="polite"></div>
+      </div>
+      <div class="pad" id="c-pad"></div>
+    </div>
+
+    <div class="panel" id="c-end" hidden>
+      <h2 id="c-end-title">Temps écoulé</h2>
+      <div class="stat-row">
+        <div class="stat"><small>Justes</small><b id="c-res">0</b></div>
+        <div class="stat"><small>Précision</small><b id="c-acc">–</b></div>
+        <div class="stat"><small>Temps moyen</small><b id="c-avg">–</b></div>
+      </div>
+      <div id="c-miss-wrap">
+        <p style="margin-bottom:8px">À revoir :</p>
+        <ul class="misses" id="c-miss"></ul>
+      </div>
+      <button class="big-btn" id="c-again">Rejouer</button>
+    </div>
+  </section>
+
+  <!-- Révision -->
+  <section class="view" id="v-table" role="tabpanel" aria-labelledby="tab-table" hidden>
+    <div class="detail" id="detail"></div>
+
+    <div class="sq-list" id="sq-list"></div>
+    <div id="tb-rev" hidden>
+      <div class="rtable" id="rtable"></div>
+    </div>
+    <p class="rnote" id="rnote" hidden>Touche une case pour voir l'astuce. La couleur indique ta maîtrise : rouge = raté récemment, bleu foncé = sûr et rapide.</p>
+
+    <div class="tricks" id="tricks-sq">
+      <h2>Trois astuces</h2>
+      <div class="trick">
+        <h3>De 11 à 19 : 100 + 20u + u²</h3>
+        <p>Écris le nombre comme 10 + u. Exemple : <code>14² = 100 + 80 + 16 = 196</code>. Sur le dessin, c'est le bloc 10×10, les deux bandes de 10×u et le petit coin u×u.</p>
+      </div>
+      <div class="trick">
+        <h3>Finit par 5 : d × (d+1), puis 25</h3>
+        <p>Pour 15, la dizaine vaut 1 : <code>1 × 2 = 2</code>, on colle 25, ce qui donne <code>225</code>. Ça marche aussi pour 25, 35…</p>
+      </div>
+      <div class="trick">
+        <h3>Passer au suivant : + n + (n+1)</h3>
+        <p>Si tu connais 16² = 256, alors <code>17² = 256 + 16 + 17 = 289</code>. Pratique pour retrouver un carré oublié à partir d'un voisin.</p>
+      </div>
+    </div>
+
+    <div class="tricks" id="tricks-tb" hidden>
+      <h2>Cinq astuces</h2>
+      <div class="trick">
+        <h3>Seulement 36 résultats à connaître</h3>
+        <p>L'ordre ne compte pas : <code>7 × 8 = 8 × 7</code>. De 2 à 9, il n'y a que 36 produits différents. Chacun doit sortir sans réfléchir.</p>
+      </div>
+      <div class="trick">
+        <h3>× 9 : dix fois, moins une fois</h3>
+        <p><code>9 × 7 = 70 − 7 = 63</code>. Vérification : les chiffres du résultat font toujours 9 (6 + 3), et le chiffre des dizaines vaut un de moins que l'autre facteur.</p>
+      </div>
+      <div class="trick">
+        <h3>× 2, × 4, × 8 : doubler</h3>
+        <p>× 4, c'est doubler deux fois ; × 8, trois fois. <code>8 × 7 : 7 → 14 → 28 → 56</code>.</p>
+      </div>
+      <div class="trick">
+        <h3>× 5 : la moitié de × 10</h3>
+        <p><code>5 × 8 = 80 ÷ 2 = 40</code>. Et × 6, c'est × 5 plus une fois : <code>6 × 7 = 35 + 7 = 42</code>.</p>
+      </div>
+      <div class="trick">
+        <h3>Les cinq qui piègent le plus</h3>
+        <p><code>6 × 7 = 42</code>, <code>6 × 8 = 48</code>, <code>7 × 8 = 56</code>, <code>7 × 9 = 63</code>, <code>8 × 9 = 72</code>. Pour 7 × 8, retiens 5, 6, 7, 8 : <code>56 = 7 × 8</code>.</p>
+      </div>
+    </div>
+
+    <div class="reset" id="reset"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const KEY = 'carres.v1';
+  const fmtS = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
+
+  // ---------- Persistance (facultative : l'app marche sans) ----------
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
+  }
+  const saved = load();
+  const state = {
+    topic: saved.topic === 'tb' ? 'tb' : 'sq',
+    tsel: Array.isArray(saved.tsel) && saved.tsel.length ? saved.tsel : [2, 3, 4, 5, 6, 7, 8, 9],
+    day: saved.day || '',
+    today: saved.today || 0,
+    // ancienne version : stats/best/last à la racine = carrés
+    sq: saved.sq || { stats: saved.stats || {}, best: saved.best || 0, last: saved.last ?? null },
+    tb: saved.tb || { stats: {}, best: 0, last: null },
+  };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (state.day !== todayKey) { state.day = todayKey; state.today = 0; }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  }
+  const D = () => state[state.topic];
+  const st = item => (D().stats[item] ||= { box: -1, seen: 0, ok: 0 });
+  const lvl = item => { const b = st(item).box; return b < 0 ? '' : 'l' + b; };
+
+  // ---------- Dessin : un rectangle de rows × cols carreaux ----------
+  // mode 'sq' : découpe 10 / u des carrés ; un nombre : sépare les colonnes à cet indice
+  function vizEl(rows, cols, mode, label) {
+    const g = document.createElement('div');
+    g.className = 'viz';
+    g.style.setProperty('--cols', cols);
+    g.style.setProperty('--rows', rows);
+    g.setAttribute('role', 'img');
+    g.setAttribute('aria-label', label);
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const c = document.createElement('span');
+      if (mode === 'sq') c.className = (i < 10 && j < 10) ? 'a' : (i >= 10 && j >= 10) ? 'c' : 'b';
+      else if (typeof mode === 'number') c.className = j < mode ? 'a' : 'b';
+      else c.className = 'a';
+      frag.appendChild(c);
+    }
+    g.appendChild(frag);
+    return g;
+  }
+
+  // ---------- Thème : carrés ----------
+  const SQ_ITEMS = Array.from({ length: 20 }, (_, i) => String(i + 1));
+  function sqTip(n) {
+    const sq = n * n;
+    if (n === 20) return `<p>2 × 2 = 4, puis on ajoute deux zéros.</p><span class="calc">20² = 400</span>`;
+    if (n === 15) return `<p>Finit par 5 : 1 × 2 = 2, puis on colle 25.</p><span class="calc">15² = 225</span>`;
+    if (n === 5) return `<p>Finit par 5 : 0 × 1 = 0, puis on colle 25.</p><span class="calc">5² = 25</span>`;
+    if (n > 10) {
+      const u = n - 10;
+      return `<p>${n} = 10 + ${u}, donc 100 + 2 × 10 × ${u} + ${u}².</p>
+        <span class="calc">100 + ${20 * u} + ${u * u} = ${sq}</span>
+        <div class="legend"><span><i class="c-a"></i>10×10 = 100</span><span><i class="c-b"></i>2 bandes de 10×${u} = ${20 * u}</span><span><i class="c-c"></i>${u}×${u} = ${u * u}</span></div>`;
+    }
+    if (n === 1) return `<p>Un seul carreau.</p><span class="calc">1² = 1</span>`;
+    const p = n - 1;
+    return `<p>${n} lignes de ${n} carreaux. Depuis ${p}² = ${p * p} : on ajoute ${p} + ${n}.</p>
+      <span class="calc">${p * p} + ${p} + ${n} = ${sq}</span>`;
+  }
+  const SQ = {
+    noun: 'carrés', fast: 4000, items: () => SQ_ITEMS, all: SQ_ITEMS,
+    question(it) { const n = +it; return { html: `<span>${n}</span><sup>2</sup>`, text: `${n}²`, answer: n * n }; },
+    explain(it) {
+      const n = +it;
+      return { title: `${n}² = ${n * n}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Un carré de ${n} sur ${n} carreaux`), tip: sqTip(n) };
+    },
+  };
+
+  // ---------- Thème : tables de 2 à 9 ----------
+  const TB_ALL = [];
+  for (let a = 2; a <= 9; a++) for (let b = a; b <= 9; b++) TB_ALL.push(a + 'x' + b);
+  const key = (a, b) => Math.min(a, b) + 'x' + Math.max(a, b);
+  const parse = it => it.split('x').map(Number);
+  function tbStrategy(a, b) {
+    const p = a * b;
+    if (a === b) return { f: a, m: a, split: null, html: `<p>C'est un carré : ${a}² = ${p}.</p><span class="calc">${a} × ${a} = ${p}</span>` };
+    const f = [2, 5, 9, 4, 8, 3, 6, 7].find(x => x === a || x === b);
+    const m = f === a ? b : a;
+    switch (f) {
+      case 2: return { f, m, split: 1, html: `<p>× 2, c'est le double.</p><span class="calc">${m} + ${m} = ${p}</span>` };
+      case 5: return { f, m, split: null, html: `<p>× 5, c'est la moitié de × 10.</p><span class="calc">${m * 10} ÷ 2 = ${p}</span>` };
+      case 9: return { f, m, split: null, html: `<p>× 9, c'est dix fois moins une fois. Les chiffres du résultat font 9.</p><span class="calc">${m * 10} − ${m} = ${p}</span>` };
+      case 4: return { f, m, split: 2, html: `<p>× 4 : on double deux fois.</p><span class="calc">${m} → ${2 * m} → ${p}</span>` };
+      case 8: return { f, m, split: 4, html: `<p>× 8 : on double trois fois.</p><span class="calc">${m} → ${2 * m} → ${4 * m} → ${p}</span>` };
+      case 3: return { f, m, split: 2, html: `<p>× 3 : le double, plus une fois.</p><span class="calc">${2 * m} + ${m} = ${p}</span>` };
+      case 6: return { f, m, split: 5, html: `<p>× 6 : cinq fois, plus une fois.</p><span class="calc">${5 * m} + ${m} = ${p}</span>` };
+      default: return { f, m, split: 5, html: `<p>× 7 : cinq fois, plus deux fois.</p><span class="calc">${5 * m} + ${2 * m} = ${p}</span>` };
+    }
+  }
+  const TB = {
+    noun: 'produits', fast: 2500, all: TB_ALL,
+    items: () => TB_ALL.filter(it => { const [a, b] = parse(it); return state.tsel.includes(a) || state.tsel.includes(b); }),
+    question(it) {
+      let [a, b] = parse(it);
+      if (a !== b && Math.random() < 0.5) [a, b] = [b, a];
+      return { html: `<span>${a}</span><span class="x">×</span><span>${b}</span>`, text: `${a} × ${b}`, answer: a * b };
+    },
+    explain(it) {
+      const [a, b] = parse(it);
+      const s = tbStrategy(a, b);
+      let legend = '';
+      if (s.split) legend = `<div class="legend"><span><i class="c-a"></i>${s.split} × ${s.m} = ${s.split * s.m}</span><span><i class="c-b"></i>${s.f - s.split} × ${s.m} = ${(s.f - s.split) * s.m}</span></div>`;
+      return {
+        title: `${a} × ${b} = ${a * b}`,
+        viz: vizEl(s.m, s.f, s.split, `${s.m} lignes de ${s.f} carreaux`),
+        tip: s.html + legend,
+      };
+    },
+  };
+  const TOPICS = { sq: SQ, tb: TB };
+  const T = () => TOPICS[state.topic];
+
+  // ---------- Progression ----------
+  // box : -1 jamais vu, 0 raté récemment, 1..5 de plus en plus sûr ET rapide
+  function record(item, ok, ms) {
+    const s = st(item);
+    s.seen++;
+    if (ok) {
+      s.ok++;
+      if (ms < T().fast) s.box = Math.min(5, Math.max(1, s.box + 1));
+      else s.box = s.box >= 3 ? s.box - 1 : Math.max(1, s.box); // juste mais lent : pas encore automatique
+    } else {
+      s.box = 0;
+    }
+    state.today++;
+    save();
+    renderMastery();
+    renderRev();
+  }
+
+  const WEIGHT = { '-1': 6, 0: 10, 1: 6, 2: 4, 3: 2.5, 4: 1.2, 5: 0.6 };
+  let retry = null; // un calcul raté revient 3 questions plus tard
+  function pick(prev) {
+    const items = T().items();
+    if (retry && --retry.in <= 0 && retry.item !== prev && items.includes(retry.item)) {
+      const it = retry.item; retry = null; return it;
+    }
+    const pool = items.length > 1 ? items.filter(it => it !== prev) : items;
+    const w = pool.map(it => WEIGHT[st(it).box]);
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < pool.length; i++) { if ((r -= w[i]) <= 0) return pool[i]; }
+    return pool[pool.length - 1];
+  }
+
+  // ---------- Bandeau de maîtrise ----------
+  let currentTrain = null;
+  function renderMastery() {
+    const m = $('mastery');
+    if (state.topic === 'sq') {
+      m.className = 'mastery';
+      m.innerHTML = SQ_ITEMS.map(it =>
+        `<div class="tile lv ${lvl(it)} ${it === currentTrain ? 'now' : ''}" title="${it}² = ${it * it}">${it}</div>`).join('');
+    } else {
+      m.className = 'tgrid';
+      let h = '<span></span>';
+      for (let c = 2; c <= 9; c++) h += `<span class="th">${c}</span>`;
+      for (let r = 2; r <= 9; r++) {
+        h += `<span class="th">${r}</span>`;
+        for (let c = 2; c <= 9; c++) {
+          const k = key(r, c);
+          const off = !(state.tsel.includes(r) || state.tsel.includes(c));
+          h += `<span class="tc lv ${lvl(k)} ${k === currentTrain ? 'now' : ''} ${off ? 'off' : ''}" title="${r} × ${c} = ${r * c}"></span>`;
+        }
+      }
+      m.innerHTML = h;
+    }
+    $('mastered').textContent = T().all.filter(it => st(it).box >= 4).length;
+    $('total').textContent = T().all.length;
+    $('today').textContent = state.today;
+  }
+
+  // ---------- Tables ciblées ----------
+  function renderChips() {
+    const c = $('chips');
+    const allOn = state.tsel.length === 8;
+    let h = '';
+    for (let n = 2; n <= 9; n++) h += `<button class="chip" data-t="${n}" aria-pressed="${state.tsel.includes(n)}">${n}</button>`;
+    h += `<button class="chip all" data-t="all" aria-pressed="${allOn}">Toutes</button>`;
+    c.innerHTML = h;
+  }
+  $('chips').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const t = b.dataset.t;
+    if (t === 'all') state.tsel = [2, 3, 4, 5, 6, 7, 8, 9];
+    else {
+      const n = +t;
+      // un appui sur une table quand tout est coché = ne garder qu'elle
+      if (state.tsel.length === 8) state.tsel = [n];
+      else if (state.tsel.includes(n)) { if (state.tsel.length > 1) state.tsel = state.tsel.filter(x => x !== n); }
+      else state.tsel = [...state.tsel, n].sort((a, b) => a - b);
+    }
+    save(); renderChips();
+    if (view === 'train') { train.next(); }
+    else renderMastery();
+  });
+
+  // ---------- Moteur de quiz (partagé) ----------
+  function makePad(el, quiz) {
+    const keys = ['1','2','3','4','5','6','7','8','9','del','0','ok'];
+    el.innerHTML = keys.map(k =>
+      k === 'del' ? `<button class="k-del" data-k="del" aria-label="Effacer">⌫</button>`
+      : k === 'ok' ? `<button class="k-ok" data-k="ok">OK</button>`
+      : `<button data-k="${k}">${k}</button>`).join('');
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const k = b.dataset.k;
+      if (k === 'del') quiz.back(); else if (k === 'ok') quiz.submit(); else quiz.digit(k);
+    });
+  }
+
+  function Quiz({ q, ans, card, onResult }) {
+    this.item = null; this.shown = null; this.buf = ''; this.locked = false; this.t0 = 0;
+    this.next = () => {
+      this.item = pick(this.item);
+      this.shown = T().question(this.item);
+      this.buf = ''; this.locked = false;
+      q.innerHTML = this.shown.html;
+      ans.textContent = '';
+      card.classList.remove('good', 'bad', 'shake');
+      this.t0 = performance.now();
+      if (this.onShow) this.onShow(this.item);
+    };
+    this.digit = d => {
+      if (this.locked || this.buf.length >= 3) return;
+      if (this.buf === '' && d === '0') return;
+      this.buf += d; ans.textContent = this.buf;
+      if (this.buf.length === String(this.shown.answer).length) this.submit();
+    };
+    this.back = () => { if (this.locked) return; this.buf = this.buf.slice(0, -1); ans.textContent = this.buf; };
+    this.submit = () => {
+      if (this.locked || !this.buf) return;
+      this.locked = true;
+      const ok = +this.buf === this.shown.answer;
+      const ms = performance.now() - this.t0;
+      record(this.item, ok, ms);
+      onResult(ok, this.item, this.shown, +this.buf, ms);
+    };
+  }
+
+  // ---------- Entraînement ----------
+  let streak = 0;
+  function defaultHint() {
+    return `Validation automatique · objectif : moins de ${fmtS(T().fast)}`;
+  }
+  const train = new Quiz({
+    q: $('t-q'), ans: $('t-ans'), card: $('t-card'),
+    onResult(ok, item, shown, given, ms) {
+      if (ok) {
+        streak++;
+        $('t-card').classList.add('good');
+        const fast = ms < T().fast;
+        $('t-hint').innerHTML = fast
+          ? `Juste en <b>${fmtS(ms)}</b>`
+          : `Juste en <b class="slow">${fmtS(ms)}</b> : encore trop lent pour compter comme acquis.`;
+        setTimeout(train.next, fast ? 450 : 800);
+      } else {
+        streak = 0;
+        retry = { item, in: 3 };
+        $('t-card').classList.add('bad', 'shake');
+        $('t-ans').innerHTML = `<s>${given}</s><span class="reveal">${shown.answer}</span>`;
+        $('t-hint').textContent = 'Ce calcul reviendra dans quelques questions.';
+        const ex = $('t-explain');
+        const e = T().explain(item);
+        ex.innerHTML = '';
+        ex.appendChild(e.viz);
+        const t = document.createElement('div');
+        t.className = 'tip';
+        t.innerHTML = `<h3>${shown.text} = ${shown.answer}</h3>${e.tip}`;
+        ex.appendChild(t);
+        ex.hidden = false;
+        $('t-pad').hidden = true;
+        $('t-next').hidden = false;
+        $('t-next').focus({ preventScroll: true });
+      }
+      $('streak').textContent = streak;
+    }
+  });
+  train.onShow = item => {
+    currentTrain = item;
+    $('t-explain').hidden = true; $('t-pad').hidden = false; $('t-next').hidden = true;
+    renderMastery();
+  };
+  $('t-next').addEventListener('click', () => { $('t-hint').textContent = defaultHint(); train.next(); });
+  makePad($('t-pad'), train);
+
+  // ---------- Chrono ----------
+  const DURATION = 60000;
+  let chronoOn = false, tEnd = 0, score = 0, tries = 0, okMs = 0, misses = [], raf = 0;
+  const chrono = new Quiz({
+    q: $('c-q'), ans: $('c-ans'), card: $('c-card'),
+    onResult(ok, item, shown, given, ms) {
+      tries++;
+      if (ok) {
+        score++; okMs += ms;
+        $('c-card').classList.add('good');
+        $('c-score').textContent = score + ' ✓';
+        setTimeout(() => chronoOn && chrono.next(), 150);
+      } else {
+        misses.push({ shown, given });
+        $('c-card').classList.add('bad', 'shake');
+        $('c-ans').innerHTML = `<s>${given}</s><span class="reveal">${shown.answer}</span>`;
+        setTimeout(() => chronoOn && chrono.next(), 900);
+      }
+    }
+  });
+  makePad($('c-pad'), chrono);
+
+  function showChrono(which) {
+    for (const id of ['c-start', 'c-run', 'c-end']) $(id).hidden = id !== which;
+  }
+  function renderChronoStart() {
+    $('c-title').textContent = `60 secondes, un maximum de ${T().noun}`;
+    $('c-best').textContent = D().best;
+    $('c-last').textContent = D().last ?? '–';
+  }
+  function startChrono() {
+    score = 0; tries = 0; okMs = 0; misses = []; chronoOn = true;
+    $('c-score').textContent = '0 ✓';
+    showChrono('c-run');
+    tEnd = performance.now() + DURATION;
+    chrono.next();
+    tick();
+  }
+  function tick() {
+    const left = Math.max(0, tEnd - performance.now());
+    $('c-fill').style.transform = `scaleX(${left / DURATION})`;
+    $('c-fill').classList.toggle('low', left < 10000);
+    $('c-sec').textContent = Math.ceil(left / 1000);
+    if (left <= 0) return endChrono();
+    raf = requestAnimationFrame(tick);
+  }
+  function endChrono() {
+    chronoOn = false; chrono.locked = true; cancelAnimationFrame(raf);
+    const d = D();
+    const isRecord = score > d.best;
+    if (isRecord) d.best = score;
+    d.last = score; save();
+    $('c-end-title').innerHTML = isRecord && score > 0 ? 'Nouveau record <span class="badge">' + score + '</span>' : 'Temps écoulé';
+    $('c-res').textContent = score;
+    $('c-acc').textContent = tries ? Math.round(100 * score / tries) + ' %' : '–';
+    $('c-avg').textContent = score ? fmtS(okMs / score) : '–';
+    $('c-miss-wrap').hidden = !misses.length;
+    $('c-miss').innerHTML = misses.map(m => `<li>${m.shown.text} = ${m.shown.answer}<span>tu as écrit ${m.given}</span></li>`).join('');
+    showChrono('c-end');
+    renderChronoStart();
+  }
+  function stopChrono() {
+    if (!chronoOn) return;
+    chronoOn = false; chrono.locked = true; cancelAnimationFrame(raf);
+    showChrono('c-start');
+  }
+  $('c-go').addEventListener('click', startChrono);
+  $('c-again').addEventListener('click', startChrono);
+
+  // ---------- Révision ----------
+  const selected = { sq: '17', tb: '7x8' };
+  function renderDetail() {
+    const d = $('detail');
+    const e = T().explain(selected[state.topic]);
+    d.innerHTML = '';
+    d.appendChild(e.viz);
+    const t = document.createElement('div');
+    t.className = 'tip';
+    t.innerHTML = `<h3>${e.title}</h3>${e.tip}`;
+    d.appendChild(t);
+  }
+  function renderRev() {
+    const isSq = state.topic === 'sq';
+    $('sq-list').hidden = !isSq; $('tricks-sq').hidden = !isSq;
+    $('tb-rev').hidden = isSq; $('tricks-tb').hidden = isSq; $('rnote').hidden = isSq;
+    if (isSq) {
+      $('sq-list').innerHTML = SQ_ITEMS.map(it =>
+        `<button class="sq" data-it="${it}" aria-pressed="${it === selected.sq}">
+          <span class="dot ${lvl(it)}"></span><span class="n">${it}²</span><span class="v">${it * it}</span>
+        </button>`).join('');
+    } else {
+      let h = '<span class="th">×</span>';
+      for (let c = 2; c <= 9; c++) h += `<span class="th">${c}</span>`;
+      for (let r = 2; r <= 9; r++) {
+        h += `<span class="th">${r}</span>`;
+        for (let c = 2; c <= 9; c++) {
+          const k = key(r, c);
+          h += `<button class="rc lv ${lvl(k)}" data-it="${k}" aria-pressed="${k === selected.tb}" aria-label="${r} fois ${c} égale ${r * c}">${r * c}</button>`;
+        }
+      }
+      $('rtable').innerHTML = h;
+    }
+  }
+  function onRevClick(e) {
+    const b = e.target.closest('[data-it]'); if (!b) return;
+    selected[state.topic] = b.dataset.it;
+    renderRev(); renderDetail();
+    $('detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  $('sq-list').addEventListener('click', onRevClick);
+  $('rtable').addEventListener('click', onRevClick);
+
+  function resetBar() {
+    $('reset').innerHTML = `<button class="ghost-btn" id="reset-ask">Réinitialiser la progression des ${state.topic === 'sq' ? 'carrés' : 'tables'}</button>`;
+    $('reset-ask').onclick = resetAsk;
+  }
+  function resetAsk() {
+    $('reset').innerHTML = `<span>Effacer la progression et le record des ${state.topic === 'sq' ? 'carrés' : 'tables'} ?</span>
+      <button class="ghost-btn danger" id="reset-yes">Effacer</button>
+      <button class="ghost-btn" id="reset-no">Annuler</button>`;
+    $('reset-yes').onclick = () => {
+      state[state.topic] = { stats: {}, best: 0, last: null };
+      streak = 0; retry = null;
+      save(); $('streak').textContent = 0; renderMastery(); renderRev(); renderChronoStart(); resetBar();
+    };
+    $('reset-no').onclick = resetBar;
+  }
+
+  // ---------- Onglets et thème ----------
+  let view = 'train';
+  function syncChips() { $('chips').hidden = state.topic !== 'tb' || view === 'table'; }
+  function setView(v) {
+    if (view === 'chrono' && v !== 'chrono') stopChrono();
+    view = v;
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === v));
+    for (const k of ['train', 'chrono', 'table']) $('v-' + k).hidden = k !== v;
+    if (v === 'chrono') { renderChronoStart(); showChrono('c-start'); }
+    syncChips();
+  }
+  document.querySelector('.tabs').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (b) setView(b.dataset.view);
+  });
+
+  function setTopic(t) {
+    stopChrono();
+    state.topic = t; save();
+    document.querySelectorAll('.topic button').forEach(b => b.setAttribute('aria-pressed', b.dataset.topic === t));
+    streak = 0; retry = null; train.item = null;
+    $('streak').textContent = 0;
+    $('t-hint').textContent = defaultHint();
+    renderChips(); syncChips();
+    renderRev(); renderDetail(); renderChronoStart(); resetBar();
+    if (view === 'chrono') showChrono('c-start');
+    train.next();
+  }
+  document.querySelector('.topic').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (b && b.dataset.topic !== state.topic) setTopic(b.dataset.topic);
+  });
+
+  // ---------- Clavier physique ----------
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    let quiz = null;
+    if (view === 'train') quiz = train;
+    else if (view === 'chrono') {
+      if (chronoOn) quiz = chrono;
+      else if (e.key === 'Enter' && $('c-run').hidden) { e.preventDefault(); return startChrono(); }
+    }
+    if (!quiz) return;
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); quiz.digit(e.key); }
+    else if (e.key === 'Backspace') { e.preventDefault(); quiz.back(); }
+    else if (e.key === 'Enter') {
+      if (document.activeElement && document.activeElement.closest('.chips, .topic, .tabs')) return;
+      e.preventDefault();
+      if (quiz === train && !$('t-next').hidden) $('t-next').click();
+      else quiz.submit();
+    }
+  });
+
+  setTopic(state.topic);
+})();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>

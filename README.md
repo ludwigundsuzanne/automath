@@ -1,4 +1,4 @@
-# Automath
+# AutoMath
 
 Application de calcul mental : carrés de 1 à 20 et tables de 2 à 9.
 Entraînement adaptatif, chrono 60 s et fiche de révision.
@@ -13,7 +13,13 @@ C'est une application web installable (PWA) : ouverte dans Chrome sur Android,
 - `index.html` : toute l'application (interface, styles, logique).
 - `manifest.webmanifest` : nom, couleurs et icônes de l'app installée.
 - `sw.js` : service worker, pour le hors ligne et les mises à jour automatiques.
-- `icons/` : icônes, générées par `tools/icons.ps1`.
+- `icons/` : icônes et favicon, issues du kit de logo AutoMath.
+
+## Charte graphique
+
+Bleu Réflexe `#2B59FF` (logo, actions, minuteur), Encre `#111317` (texte), Papier `#F6F4EF` (fond).
+Police d'interface : Outfit. Le logo est dessiné : il est intégré en SVG dans `index.html`,
+ne jamais réécrire le nom avec une police.
 
 ## Mettre à jour
 

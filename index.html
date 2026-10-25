@@ -3,52 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Automath</title>
+<title>AutoMath</title>
 <meta name="description" content="Entraînement au calcul mental : carrés de 1 à 20 et tables de 2 à 9.">
-<meta name="theme-color" content="#EEF2F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0F1621" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111317" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" href="icons/favicon.ico" sizes="any">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700;800&family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap">
 </head>
 <body>
 <style>
-/* Layout : une colonne étroite façon carnet quadrillé, pavé numérique en bas, sous le pouce. */
+/* Charte AutoMath : Bleu Réflexe #2B59FF (logo, actions, minuteur), Encre #111317 (texte), Papier #F6F4EF (fond).
+   Layout : une colonne étroite façon carnet quadrillé, pavé numérique en bas, sous le pouce. */
 :root {
-  --bg: #EEF2F5;
-  --grid: #DFE6EC;
+  --bg: #F6F4EF;
+  --grid: #ECE9E2;
   --paper: #FFFFFF;
-  --ink: #132033;
-  --muted: #5B6B80;
-  --line: #D3DCE5;
-  --accent: #2846C8;
+  --ink: #111317;
+  --muted: #66655F;
+  --line: #E1DDD4;
+  --accent: #2B59FF;
+  --accent-text: #2B59FF;
   --accent-ink: #FFFFFF;
-  --accent-soft: #DCE3FB;
+  --accent-soft: #E2E9FF;
   --mark: #F2C94C;
   --good: #1F8A5B;
-  --good-soft: #D7F0E3;
+  --good-soft: #D9F0E3;
   --bad: #C2412D;
   --bad-soft: #F8DDD7;
-  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --f-body: "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif;
-  --f-num: "Atkinson Hyperlegible Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --f-display: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --f-num: "Outfit", "Segoe UI", system-ui, sans-serif;
   --r: 14px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0F1621; --grid: #16202D; --paper: #172130; --ink: #E6EDF5; --muted: #93A3B8;
-    --line: #2A3748; --accent: #8AA2FF; --accent-ink: #0F1621; --accent-soft: #22305A; --mark: #D9B23A;
-    --good: #4CC38A; --good-soft: #173829; --bad: #F07A66; --bad-soft: #3D1F1A;
+    --bg: #111317; --grid: #171A1F; --paper: #1B1E24; --ink: #F6F4EF; --muted: #9C9A93;
+    --line: #2B2F37; --accent: #2B59FF; --accent-text: #8EA8FF; --accent-ink: #FFFFFF; --accent-soft: #1C2858; --mark: #E5BC3F;
+    --good: #4CC38A; --good-soft: #163527; --bad: #F07A66; --bad-soft: #3B1F1A;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0F1621; --grid: #16202D; --paper: #172130; --ink: #E6EDF5; --muted: #93A3B8;
-  --line: #2A3748; --accent: #8AA2FF; --accent-ink: #0F1621; --accent-soft: #22305A; --mark: #D9B23A;
-  --good: #4CC38A; --good-soft: #173829; --bad: #F07A66; --bad-soft: #3D1F1A;
+  --bg: #111317; --grid: #171A1F; --paper: #1B1E24; --ink: #F6F4EF; --muted: #9C9A93;
+  --line: #2B2F37; --accent: #2B59FF; --accent-text: #8EA8FF; --accent-ink: #FFFFFF; --accent-soft: #1C2858; --mark: #E5BC3F;
+  --good: #4CC38A; --good-soft: #163527; --bad: #F07A66; --bad-soft: #3B1F1A;
   color-scheme: dark;
 }
 
@@ -79,10 +82,14 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   font-family: var(--f-display); font-weight: 800; font-size: clamp(21px, 6.2vw, 28px); line-height: 1;
   margin: 0; letter-spacing: -0.02em; text-wrap: balance;
 }
-.brand .amp { color: var(--accent); }
+.brand { display: flex; }
+.brand svg { height: 21px; width: auto; display: block; }
+.brand .tile { fill: var(--accent); }
+.brand .glyph { fill: #FFFFFF; }
+.brand .word { fill: var(--ink); }
 
 .topic { display: inline-flex; border: 1px solid var(--line); background: var(--paper); border-radius: 99px; padding: 3px; }
-.topic button { border: 0; background: transparent; border-radius: 99px; padding: 6px 12px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.topic button { border: 0; background: transparent; border-radius: 99px; padding: 6px 11px; font-weight: 700; font-size: 14px; color: var(--muted); }
 .topic button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 
 .tabs {
@@ -155,8 +162,8 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .card.shake { animation: shake .3s; }
 @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .q { font-family: var(--f-num); font-weight: 800; font-size: clamp(64px, 20vw, 104px); line-height: 1; letter-spacing: -0.03em; white-space: nowrap; }
-.q sup { font-size: 0.42em; color: var(--accent); vertical-align: 0.95em; margin-left: 2px; }
-.q .x { color: var(--accent); font-weight: 400; margin: 0 0.12em; font-size: 0.8em; }
+.q sup { font-size: 0.42em; color: var(--accent-text); vertical-align: 0.95em; margin-left: 2px; }
+.q .x { color: var(--accent-text); font-weight: 400; margin: 0 0.12em; font-size: 0.8em; }
 .ans {
   font-family: var(--f-num); font-weight: 700; font-size: 40px; line-height: 1;
   min-width: 4.2ch; height: 58px; display: flex; align-items: center; justify-content: center;
@@ -253,7 +260,7 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* Révision des tables : la table de Pythagore */
 .rtable { display: grid; grid-template-columns: 22px repeat(8, 1fr); gap: 4px; }
-.rtable .th { font-family: var(--f-num); font-weight: 700; font-size: 13px; color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.rtable .th { font-family: var(--f-num); font-weight: 700; font-size: 13px; color: var(--accent-text); display: flex; align-items: center; justify-content: center; }
 .rc {
   height: 40px; border-radius: 8px; font-family: var(--f-num); font-weight: 700; font-size: 16px;
   font-variant-numeric: tabular-nums; padding: 0;
@@ -287,7 +294,7 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 <div class="app">
   <header class="top">
     <div class="brand-row">
-      <h1 class="brand">Auto<span class="amp">math</span></h1>
+      <h1 class="brand"><svg viewBox="0 -64 1662 224" role="img" aria-label="AutoMath"><path class="tile" d="M50.4 -64H173.6A50.4 50.4 0 0 1 224 -13.6V109.6A50.4 50.4 0 0 1 173.6 160H50.4A50.4 50.4 0 0 1 0 109.6V-13.6A50.4 50.4 0 0 1 50.4 -64Z"/><path class="glyph" d="M112 -22A70 70 0 1 0 150.5 106.46V115.38H182V-19.38H150.5V48A38.5 38.5 0 1 1 112 9.5Z"/><g class="word" fill-rule="evenodd" transform="translate(296 0)"><path d="M80 0A80 80 0 1 0 124 146.81V157H160V3H124V80A44 44 0 1 1 80 36Z"/><path d="M188 3V80A80 80 0 0 0 348 80V3H312V80A44 44 0 0 1 224 80V3Z"/><path d="M312 3H348V157H312Z"/><path d="M388 -44H424V157H388Z"/><path d="M364 3H460V33H364Z"/><path d="M552 0A80 80 0 1 0 552 160A80 80 0 1 0 552 0ZM552 36A44 44 0 1 1 552 124A44 44 0 1 1 552 36Z"/><path d="M654 157V69A69 69 0 0 1 792 69V157H756V69A33 33 0 0 0 690 69V157Z"/><path d="M756 157V69A69 69 0 0 1 894 69V157H858V69A33 33 0 0 0 792 69V157Z"/><path d="M996 0A80 80 0 1 0 1040 146.81V157H1076V3H1040V80A44 44 0 1 1 996 36Z"/><path d="M1116 -44H1152V157H1116Z"/><path d="M1092 3H1188V33H1092Z"/><path d="M1206 -64H1242V157H1206Z"/><path d="M1206 80A80 80 0 0 1 1366 80V157H1330V80A44 44 0 0 0 1242 80Z"/></g></svg></h1>
       <div class="topic" role="group" aria-label="Thème">
         <button id="topic-sq" data-topic="sq" aria-pressed="true">Carrés</button>
         <button id="topic-tb" data-topic="tb" aria-pressed="false">Tables</button>

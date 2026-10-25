@@ -1,6 +1,6 @@
 {
-  "name": "Automath",
-  "short_name": "Automath",
+  "name": "AutoMath",
+  "short_name": "AutoMath",
   "description": "Entraînement au calcul mental : carrés de 1 à 20 et tables de 2 à 9.",
   "lang": "fr",
   "id": "./",
@@ -8,11 +8,12 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#2846C8",
-  "theme_color": "#2846C8",
+  "background_color": "#F6F4EF",
+  "theme_color": "#2B59FF",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

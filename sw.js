@@ -1,13 +1,14 @@
-// Service worker d'Automath : l'app marche hors ligne et se met à jour toute seule.
+// Service worker d'AutoMath : l'app marche hors ligne et se met à jour toute seule.
 // Fichiers de l'app : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Polices Google : cache d'abord.
-const CACHE = 'automath-v1';
+const CACHE = 'automath-v2';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/favicon.svg',
 ];
 
 self.addEventListener('install', event => {

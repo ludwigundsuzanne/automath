@@ -127,10 +127,22 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tgrid .th { font-family: var(--f-num); font-size: 10px; color: var(--muted); text-align: center; line-height: 10px; }
 .tgrid .tc { height: 10px; border-radius: 2px; }
 
-.meta {
-  display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; color: var(--muted);
-}
-.meta b { color: var(--ink); font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+/* Série du jour : jours d'affilée + objectif quotidien */
+.daily { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.daily .streak { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.daily .streak svg { width: 18px; height: 18px; fill: var(--line); }
+.daily.on .streak svg { fill: var(--muted); }
+.daily.done .streak svg { fill: var(--mark); }
+.daily .streak b { font-family: var(--f-num); font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dbar { flex: 1; height: 10px; border-radius: 99px; background: var(--paper); border: 1px solid var(--line); overflow: hidden; min-width: 0; }
+.dfill { height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .3s; }
+.daily.done .dfill { background: var(--good); }
+.dcount { font-family: var(--f-num); font-weight: 700; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.daily.done .dcount { color: var(--good); }
+.daily.pop { animation: pop .6s; }
+@keyframes pop { 30% { transform: scale(1.04); } }
+.rstats { font-size: 14px; color: var(--muted); margin: 0; }
+.rstats b { color: var(--ink); font-family: var(--f-num); }
 
 /* Carte question */
 .card {
@@ -281,6 +293,11 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         <button id="topic-tb" data-topic="tb" aria-pressed="false">Tables</button>
       </div>
     </div>
+    <div class="daily" id="daily" role="status">
+      <span class="streak" id="d-streak-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 1.8c.6 3.4 4.9 5.6 4.9 11.2a5.5 5.5 0 0 1-11 0c0-2.4 1.1-4.2 2.4-5.4.1 1.9.9 3.2 2.2 3.4-.3-3.4.1-6.4 1.5-9.2z"/></svg><b id="d-streak">0</b> j</span>
+      <div class="dbar"><div class="dfill" id="d-fill"></div></div>
+      <span class="dcount" id="d-count">0/30</span>
+    </div>
     <nav class="tabs" role="tablist" aria-label="Modes">
       <button role="tab" id="tab-train" data-view="train" aria-selected="true">Entraînement</button>
       <button role="tab" id="tab-chrono" data-view="chrono" aria-selected="false">Chrono 60 s</button>
@@ -292,11 +309,6 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   <!-- Entraînement adaptatif -->
   <section class="view" id="v-train" role="tabpanel" aria-labelledby="tab-train">
     <div id="mastery" aria-label="Niveau de maîtrise"></div>
-    <div class="meta">
-      <span>Série <b id="streak">0</b></span>
-      <span>Aujourd'hui <b id="today">0</b></span>
-      <span>Maîtrisés <b id="mastered">0</b>/<span id="total">20</span></span>
-    </div>
     <div class="card" id="t-card">
       <div class="q" id="t-q"></div>
       <div class="ans" id="t-ans" aria-live="polite"></div>
@@ -350,6 +362,7 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
   <!-- Révision -->
   <section class="view" id="v-table" role="tabpanel" aria-labelledby="tab-table" hidden>
+    <p class="rstats" id="rstats"></p>
     <div class="detail" id="detail"></div>
 
     <div class="sq-list" id="sq-list"></div>
@@ -416,14 +429,12 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   const state = {
     topic: saved.topic === 'tb' ? 'tb' : 'sq',
     tsel: Array.isArray(saved.tsel) && saved.tsel.length ? saved.tsel : [2, 3, 4, 5, 6, 7, 8, 9],
-    day: saved.day || '',
-    today: saved.today || 0,
+    daily: saved.daily || { day: '', fast: 0 },          // bonnes réponses rapides du jour
+    streak: saved.streak || { count: 0, last: '', best: 0 }, // last = dernier jour où l'objectif a été atteint
     // ancienne version : stats/best/last à la racine = carrés
     sq: saved.sq || { stats: saved.stats || {}, best: saved.best || 0, last: saved.last ?? null },
     tb: saved.tb || { stats: {}, best: 0, last: null },
   };
-  const todayKey = new Date().toISOString().slice(0, 10);
-  if (state.day !== todayKey) { state.day = todayKey; state.today = 0; }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
   }
@@ -535,11 +546,57 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     } else {
       s.box = 0;
     }
-    state.today++;
+    dayJustDone = false;
+    if (ok && ms < T().fast) {
+      rollDay();
+      state.daily.fast++;
+      if (state.daily.fast === GOAL) completeDay();
+    }
     save();
     renderMastery();
     renderRev();
+    renderDaily();
   }
+
+  // ---------- Série du jour ----------
+  const GOAL = 30;
+  let dayJustDone = false;
+  const dayKey = (offset = 0) => {
+    const d = new Date(); d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  function rollDay() {
+    if (state.daily.day !== dayKey()) state.daily = { day: dayKey(), fast: 0 };
+  }
+  // la série reste vivante tant que l'objectif a été atteint aujourd'hui ou hier
+  function streakNow() {
+    const s = state.streak;
+    return s.last === dayKey() || s.last === dayKey(-1) ? s.count : 0;
+  }
+  function completeDay() {
+    const s = state.streak;
+    if (s.last === dayKey()) return;
+    s.count = s.last === dayKey(-1) ? s.count + 1 : 1;
+    s.last = dayKey();
+    s.best = Math.max(s.best, s.count);
+    dayJustDone = true;
+    $('daily').classList.remove('pop'); void $('daily').offsetWidth; $('daily').classList.add('pop');
+  }
+  function renderDaily() {
+    rollDay();
+    const n = state.daily.fast, k = streakNow(), done = n >= GOAL;
+    const el = $('daily');
+    el.classList.toggle('done', done);
+    el.classList.toggle('on', k > 0);
+    $('d-streak').textContent = k;
+    $('d-fill').style.width = Math.min(100, 100 * n / GOAL) + '%';
+    $('d-count').textContent = done ? `${n}/${GOAL} ✓` : `${n}/${GOAL}`;
+    el.title = done
+      ? `Série du jour validée. ${k} jour${k > 1 ? 's' : ''} d'affilée.`
+      : `Objectif du jour : ${GOAL} bonnes réponses rapides. ${k ? `Valide-le pour passer à ${k + 1} jours d'affilée.` : ''}`;
+    el.setAttribute('aria-label', `${k} jours d'affilée. Série du jour : ${n} sur ${GOAL}.`);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) renderDaily(); });
 
   const WEIGHT = { '-1': 6, 0: 10, 1: 6, 2: 4, 3: 2.5, 4: 1.2, 5: 0.6 };
   let retry = null; // un calcul raté revient 3 questions plus tard
@@ -577,9 +634,6 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
       }
       m.innerHTML = h;
     }
-    $('mastered').textContent = T().all.filter(it => st(it).box >= 4).length;
-    $('total').textContent = T().all.length;
-    $('today').textContent = state.today;
   }
 
   // ---------- Tables ciblées ----------
@@ -662,10 +716,13 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         streak++;
         $('t-card').classList.add('good');
         const fast = ms < T().fast;
-        $('t-hint').innerHTML = fast
-          ? `Juste en <b>${fmtS(ms)}</b>`
-          : `Juste en <b class="slow">${fmtS(ms)}</b> : encore trop lent pour compter comme acquis.`;
-        setTimeout(train.next, fast ? 450 : 800);
+        const k = streakNow();
+        $('t-hint').innerHTML = dayJustDone
+          ? `<b>Série du jour validée !</b> ${k} jour${k > 1 ? 's' : ''} d'affilée.`
+          : fast
+            ? `Juste en <b>${fmtS(ms)}</b>${streak >= 3 ? ` · ${streak} de suite` : ''}`
+            : `Juste en <b class="slow">${fmtS(ms)}</b> : trop lent pour compter dans la série du jour.`;
+        setTimeout(train.next, dayJustDone ? 1600 : fast ? 450 : 800);
       } else {
         streak = 0;
         retry = { item, in: 3 };
@@ -685,7 +742,6 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         $('t-next').hidden = false;
         $('t-next').focus({ preventScroll: true });
       }
-      $('streak').textContent = streak;
     }
   });
   train.onShow = item => {
@@ -779,6 +835,9 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   }
   function renderRev() {
     const isSq = state.topic === 'sq';
+    const s = state.streak;
+    $('rstats').innerHTML = `Maîtrisés : <b>${T().all.filter(it => st(it).box >= 4).length}/${T().all.length}</b>`
+      + ` · Record de série : <b>${s.best}</b> jour${s.best > 1 ? 's' : ''}`;
     $('sq-list').hidden = !isSq; $('tricks-sq').hidden = !isSq;
     $('tb-rev').hidden = isSq; $('tricks-tb').hidden = isSq; $('rnote').hidden = isSq;
     if (isSq) {
@@ -819,7 +878,7 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     $('reset-yes').onclick = () => {
       state[state.topic] = { stats: {}, best: 0, last: null };
       streak = 0; retry = null;
-      save(); $('streak').textContent = 0; renderMastery(); renderRev(); renderChronoStart(); resetBar();
+      save(); renderMastery(); renderRev(); renderChronoStart(); resetBar();
     };
     $('reset-no').onclick = resetBar;
   }
@@ -844,7 +903,6 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     state.topic = t; save();
     document.querySelectorAll('.topic button').forEach(b => b.setAttribute('aria-pressed', b.dataset.topic === t));
     streak = 0; retry = null; train.item = null;
-    $('streak').textContent = 0;
     $('t-hint').textContent = defaultHint();
     renderChips(); syncChips();
     renderRev(); renderDetail(); renderChronoStart(); resetBar();
@@ -875,6 +933,7 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     }
   });
 
+  renderDaily();
   setTopic(state.topic);
 })();
 </script>

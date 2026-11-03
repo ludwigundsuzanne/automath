@@ -23,6 +23,11 @@
   }
   const pf = v => (v > 0 ? '+' : '') + nf(v) + ' %';
   const eur = v => nf(v) + ' €';
+  const kmh = v => nf(v) + ' km/h';
+  const pad = n => String(n).padStart(2, '0');
+  // durée en minutes → « 45 min », « 2 h », « 1 h 05 » ; heure de la journée en minutes → « 11 h 24 »
+  const dur = m => { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? `${h} h${r ? ' ' + pad(r) : ''}` : `${r} min`; };
+  const hm = m => { m = Math.round(m); return `${Math.floor(m / 60)} h ${pad(m % 60)}`; };
 
   // Fraction affichée en hauteur ; réduite par défaut
   function fr(n, d, reduce = true) {
@@ -301,6 +306,207 @@
     m, [(a + b) / 2, (a * y + b * x) / (x + y)], { step: 0.5, min: 0 });
   });
 
+  // ===== Vitesses, croisements et rattrapage =====
+  def('vit.base', 'vit', 1, 'Vitesse, distance, temps', () => {
+    const T = pick([15, 20, 30, 40, 45, 50, 75, 90, 100, 120, 150]);
+    let v; do v = int(4, 24) * 5; while (!Number.isInteger(v * T / 60));
+    const D = v * T / 60;
+    if (Math.random() < 0.5) {
+      return numQ({ text: `Un train parcourt ${D} km en ${dur(T)}. Quelle est sa vitesse moyenne ?`,
+        exp: `<p>${dur(T)} = ${fr(T, 60)} h. Vitesse = distance ÷ temps = ${D} × 60 ÷ ${T} = ${kmh(v)}.</p><p>Piège : ${dur(T)} ne vaut pas ${nf(T / 100)} h. Une heure fait 60 minutes, pas 100.</p>` },
+      v, [D / (T / 100), D * T / 60, v * 1.2, D], { step: 5, min: 1, dp: 0, fmt: kmh });
+    }
+    const hours = D / v, naive = Math.floor(hours) * 60 + Math.round((hours % 1) * 100);
+    return numQ({ text: `À ${kmh(v)}, combien de temps faut-il pour parcourir ${D} km ?`,
+      exp: `<p>Temps = distance ÷ vitesse = ${D} ÷ ${v} = ${nf(hours)} h.</p>${hours % 1 ? `<p>La partie décimale se multiplie par 60 : ${nf(hours % 1)} × 60 = ${T % 60} min. Donc ${dur(T)}, pas ${Math.floor(hours)} h ${Math.round((hours % 1) * 100)}.</p>` : ''}` },
+    T, [naive, T + 15, T - 15], { step: 5, min: 5, dp: 0, fmt: dur });
+  });
+
+  def('vit.ar', 'vit', 2, 'Moyenne sur un aller-retour', () => {
+    const [v1, v2] = shuffle(pick([[60, 40], [30, 60], [90, 60], [120, 80], [50, 75], [100, 150], [20, 30], [120, 60], [45, 90], [36, 60], [70, 105], [40, 120], [60, 180], [48, 80]]).slice());
+    const m = 2 * v1 * v2 / (v1 + v2), d = lcm(v1, v2);
+    return numQ({ text: `Un automobiliste fait l'aller à ${kmh(v1)} et le retour, sur la même route, à ${kmh(v2)}. Quelle est sa vitesse moyenne sur l'aller-retour ?`,
+      exp: `<p>Ce n'est pas la moyenne des deux vitesses : on roule plus longtemps à la vitesse la plus lente.</p><p>Formule : 2 × ${v1} × ${v2} ÷ (${v1} + ${v2}) = ${kmh(m)}. Ou prends une distance pratique de ${d} km : aller ${nf(d / v1)} h, retour ${nf(d / v2)} h, soit ${2 * d} km en ${nf(d / v1 + d / v2)} h = ${kmh(m)}.</p>` },
+    m, [(v1 + v2) / 2, Math.min(v1, v2), Math.max(v1, v2), (v1 + v2) / 2 + 2], { step: 2, min: 1, dp: 0, fmt: kmh });
+  });
+
+  def('vit.legs', 'vit', 2, 'Moyenne sur deux tronçons', () => {
+    let v1, v2, t1, t2, m;
+    do { v1 = int(3, 12) * 10; v2 = int(3, 12) * 10; t1 = pick([0.5, 1, 1.5, 2, 2.5, 3]); t2 = pick([0.5, 1, 1.5, 2, 2.5, 3]); m = (v1 * t1 + v2 * t2) / (t1 + t2); }
+    while (v1 === v2 || t1 === t2 || !Number.isInteger(m));
+    const D1 = v1 * t1, D2 = v2 * t2;
+    return numQ({ text: `Un automobiliste roule ${D1} km à ${kmh(v1)}, puis ${D2} km à ${kmh(v2)}. Quelle est sa vitesse moyenne sur l'ensemble du trajet ?`,
+      exp: `<p>Temps : ${D1} ÷ ${v1} = ${nf(t1)} h, puis ${D2} ÷ ${v2} = ${nf(t2)} h.</p><p>Vitesse moyenne = distance totale ÷ temps total = ${D1 + D2} ÷ ${nf(t1 + t2)} = ${kmh(m)}. Jamais la moyenne des deux vitesses (${nf((v1 + v2) / 2)}).</p>` },
+    m, [(v1 + v2) / 2, (D1 + D2) / (t1 + t2 + 0.5), m + 5], { step: 2, min: 1, dp: 0, fmt: kmh });
+  });
+
+  def('vit.catch', 'vit', 3, 'Rattrapage', () => {
+    let e, t, dt, vA, av;
+    do { e = pick([10, 12, 15, 20, 25, 30]); t = pick([1, 1.5, 2, 2.5, 3, 4]); av = e * t; dt = pick([0.5, 1, 1.5, 2, 3]); vA = av / dt; } while (!Number.isInteger(vA) || vA < 20 || vA > 110);
+    const vB = vA + e, start = int(7, 13) * 60, bStart = start + dt * 60, at = bStart + t * 60, [x, y] = two();
+    return numQ({ text: `${x} part à ${hm(start)} et roule à ${kmh(vA)}. ${y} part du même endroit à ${hm(bStart)}, dans la même direction, à ${kmh(vB)}. À quelle heure a lieu le rattrapage ?`,
+      exp: `<p>Quand ${y} part, ${x} a déjà ${nf(dt)} h × ${vA} = ${av} km d'avance.</p><p>${y} gagne ${vB} − ${vA} = ${e} km par heure : il faut ${av} ÷ ${e} = ${nf(t)} h, soit ${dur(t * 60)}. Rattrapage à ${hm(bStart)} + ${dur(t * 60)} = ${hm(at)}.</p>` },
+    at, [bStart + av / vB * 60, bStart + av / (vA + vB) * 60, start + t * 60, at + 30], { step: 30, dp: 0, fmt: hm });
+  });
+
+  def('vit.cross', 'vit', 2, 'Croisement', () => {
+    let v1, v2; do { v1 = int(4, 12) * 10; v2 = int(4, 12) * 10; } while (v1 === v2);
+    const t = pick([0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3]), D = (v1 + v2) * t;
+    const intro = `Deux voitures partent en même temps de deux villes A et B distantes de ${D} km et roulent l'une vers l'autre, la première (partie de A) à ${kmh(v1)}, la seconde à ${kmh(v2)}.`;
+    if (Math.random() < 0.5) {
+      return numQ({ text: `${intro} Au bout de combien de temps se croisent-elles ?`,
+        exp: `<p>Elles se rapprochent de ${v1} + ${v2} = ${v1 + v2} km chaque heure.</p><p>Temps = ${D} ÷ ${v1 + v2} = ${nf(t)} h = ${dur(t * 60)}.</p>` },
+      t * 60, [D / Math.abs(v1 - v2) * 60, D / v1 * 60, D / v2 * 60, 2 * t * 60], { step: 15, min: 5, dp: 0, fmt: dur });
+    }
+    return numQ({ text: `${intro} À quelle distance de A se croisent-elles ?`,
+      exp: `<p>Elles se croisent au bout de ${D} ÷ (${v1} + ${v2}) = ${nf(t)} h. La voiture partie de A a roulé ${v1} × ${nf(t)} = ${nf(v1 * t)} km.</p><p>Plus direct : elle fait ${fr(v1, v1 + v2)} du trajet, car elle roule ${fr(v1, v1 + v2)} de la vitesse totale.</p>` },
+    v1 * t, [D / 2, v2 * t, D - v1 * t / 2, v1 * t + 10], { step: 10, min: 1, fmt: v => nf(v) + ' km' });
+  });
+
+  def('vit.delay', 'vit', 3, 'Croisement à départ différé', () => {
+    let v1, v2, d, k, R, D;
+    do { v1 = int(12, 25); v2 = int(12, 25); d = pick([0.5, 1, 1.5]); k = int(5, 30); R = (v1 + v2) * k / 10; D = v1 * d + R; } while (!Number.isInteger(R) || !Number.isInteger(D) || v1 === v2);
+    const t = k / 10, start = int(8, 10) * 60, bStart = start + d * 60, meet = bStart + t * 60;
+    return numQ({ text: `À ${hm(start)}, un cycliste part de A vers B à ${kmh(v1)}. À ${hm(bStart)}, un autre cycliste part de B vers A à ${kmh(v2)}. A et B sont distants de ${D} km. À quelle heure se croisent-ils ?`,
+      exp: `<p>Avant le départ du second, le premier a déjà roulé ${nf(d)} h × ${v1} = ${nf(v1 * d)} km. Il reste ${nf(R)} km entre eux.</p><p>Ils se rapprochent de ${v1} + ${v2} = ${v1 + v2} km/h : ${nf(R)} ÷ ${v1 + v2} = ${nf(t)} h = ${dur(t * 60)}. Croisement à ${hm(bStart)} + ${dur(t * 60)} = ${hm(meet)}.</p>` },
+    meet, [start + D / (v1 + v2) * 60, bStart + D / (v1 + v2) * 60, start + t * 60, meet + 12], { step: 12, dp: 0, fmt: hm });
+  });
+
+  // ===== Temps de travail et production =====
+  const WORK = [['Un robinet remplit une baignoire', 'un second robinet', 'aux deux robinets ensemble'], ['Une imprimante imprime un dossier', 'une seconde imprimante', 'aux deux imprimantes ensemble'], ['Léo range le grenier', 'Margot', 'à Léo et Margot ensemble']];
+  function workPair() { let a, b, t; do { a = int(2, 36) * 5; b = int(2, 36) * 5; t = a * b / (a + b); } while (a === b || !Number.isInteger(t) || t < 10); return [a, b, t]; }
+
+  def('trav.two', 'trav', 2, 'Travailler à deux', () => {
+    const [a, b, t] = workPair(), [s1, s2, s3] = pick(WORK);
+    return numQ({ text: `${s1} en ${dur(a)}, ${s2} en ${dur(b)}. Combien de temps faut-il ${s3} ?`,
+      exp: `<p>On additionne les vitesses de travail, pas les temps : 1/T = 1/${a} + 1/${b}.</p><p>T = ${a} × ${b} ÷ (${a} + ${b}) = ${a * b} ÷ ${a + b} = ${t} min, soit ${dur(t)}. Vérifie : c'est forcément moins que le plus rapide seul (${dur(Math.min(a, b))}).</p>` },
+    t, [(a + b) / 2, a + b, Math.abs(a - b), Math.min(a, b) / 2 + 5], { step: 5, min: 1, dp: 0, fmt: dur });
+  });
+
+  def('trav.find', 'trav', 3, 'Retrouver le temps d\'un seul', () => {
+    const [a, b, t] = workPair();
+    return numQ({ text: `Ensemble, deux robinets remplissent une cuve en ${dur(t)}. Le premier, seul, la remplit en ${dur(a)}. Combien de temps faut-il au second, seul ?`,
+      exp: `<p>1/T₂ = 1/${t} − 1/${a}, donc T₂ = ${a} × ${t} ÷ (${a} − ${t}) = ${a * t} ÷ ${a - t} = ${b} min, soit ${dur(b)}.</p><p>Ou teste les réponses avec la formule à deux : ${a} × ${b} ÷ (${a} + ${b}) = ${t} ✓.</p>` },
+    b, [a - t, a + t, 2 * t, b + 10], { step: 5, min: 1, dp: 0, fmt: dur });
+  });
+
+  def('trav.inv', 'trav', 1, 'Plus de monde, moins de temps', () => {
+    if (Math.random() < 0.5) {
+      let n1, d1, n2; do { n1 = int(2, 12); d1 = int(4, 30); n2 = int(2, 15); } while (n1 === n2 || (n1 * d1) % n2 !== 0);
+      const ans = n1 * d1 / n2;
+      return numQ({ text: `${n1} ouvriers construisent un mur en ${d1} jours. Combien de jours faut-il à ${n2} ouvriers travaillant au même rythme ?`,
+        exp: `<p>Le travail total ne change pas : ${n1} × ${d1} = ${n1 * d1} jours de travail d'un ouvrier.</p><p>Avec ${n2} ouvriers : ${n1 * d1} ÷ ${n2} = ${ans} jours. Plus de monde, moins de jours : c'est une proportion inverse.</p>` },
+      ans, [d1 * n2 / n1, d1 + n1 - n2, d1 - n1 + n2, ans + 1], { min: 1, dp: 1, fmt: v => nf(v, 1) + ' jours' });
+    }
+    let h1, d1, h2; do { h1 = int(5, 10); d1 = int(10, 50); h2 = int(5, 12); } while (h1 === h2 || (h1 * d1) % h2 !== 0);
+    const ans = h1 * d1 / h2;
+    return numQ({ text: `En travaillant ${h1} heures par jour, Sam met ${d1} jours pour finir un chantier. Combien de jours lui faut-il en travaillant ${h2} heures par jour ?`,
+      exp: `<p>Heures totales : ${h1} × ${d1} = ${h1 * d1} h.</p><p>À ${h2} h par jour : ${h1 * d1} ÷ ${h2} = ${ans} jours.</p>` },
+    ans, [d1 * h2 / h1, d1 + h1 - h2, d1 - h1 + h2, ans + 1], { min: 1, dp: 1, fmt: v => nf(v, 1) + ' jours' });
+  });
+
+  def('trav.rate', 'trav', 1, 'Cadence de production', () => {
+    let p, m, H, ans; do { p = int(2, 9); m = pick([3, 4, 5, 6, 8, 10, 12, 15]); H = int(1, 8); ans = p * H * 60 / m; } while (!Number.isInteger(ans) || p === m);
+    return numQ({ text: `Une machine fabrique ${p} pièces toutes les ${m} minutes. Combien de pièces fabrique-t-elle en ${H} h ?`,
+      exp: `<p>${H} h = ${H * 60} minutes, soit ${H * 60 / m} fois ${m} minutes.</p><p>Production = ${H * 60 / m} × ${p} = ${ans} pièces.</p>` },
+    ans, [p * H * 100 / m, p * H * m, ans / 2, ans + p], { step: p, min: 1, dp: 0 });
+  });
+
+  def('trav.jar', 'trav', 3, 'Consommation partagée', () => {
+    let kids, a, b, D, c, tot, ans;
+    do { kids = int(2, 3); a = int(1, 3); b = int(1, 3); D = int(10, 40); c = int(2, 4); tot = ((kids + 1) * a + b) * D; ans = tot / ((kids + 2) * c); }
+    while (a === b || !Number.isInteger(ans) || ans === D);
+    const perDay = (kids + 1) * a + b;
+    return numQ({ text: `Dans une famille, les ${kids} enfants et le père prennent chacun ${a} bonbon${a > 1 ? 's' : ''} par jour, la mère en prend ${b}. Le pot est vidé en ${D} jours. En combien de jours serait-il vidé si chacun en prenait ${c} par jour ?`,
+      exp: `<p>Par jour : ${kids + 1} × ${a} + ${b} = ${perDay} bonbons, donc le pot en contient ${perDay} × ${D} = ${tot}.</p><p>Nouveau rythme : ${kids + 2} × ${c} = ${(kids + 2) * c} par jour, soit ${tot} ÷ ${(kids + 2) * c} = ${ans} jours.</p>` },
+    ans, [tot / ((kids + 1) * c), D * a / c, D, ans + 2], { min: 1, dp: 1, fmt: v => nf(v, 1) + ' jours' });
+  });
+
+  // ===== Conversions =====
+  def('conv.hdec', 'conv', 1, 'Heures décimales', () => {
+    const h = int(0, 4), f = pick([0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]);
+    const x = h + f, ans = h * 60 + Math.round(f * 60), naive = h * 60 + Math.round(f * 100);
+    return numQ({ text: `Combien font ${nf(x)} h en heures et minutes ?`,
+      exp: `<p>La partie décimale se multiplie par 60 : ${nf(f)} × 60 = ${Math.round(f * 60)} min. Donc ${nf(x)} h = ${dur(ans)}.</p><p>Piège : ce n'est pas ${h} h ${Math.round(f * 100)}. Repères : 0,1 h = 6 min, 0,25 h = 15 min, 0,75 h = 45 min.</p>` },
+    ans, [naive, ans + 6, ans - 6, ans + 10], { step: 3, min: 1, dp: 0, fmt: dur });
+  });
+
+  def('conv.speed', 'conv', 1, 'm/s et km/h', () => {
+    if (Math.random() < 0.5) {
+      const ms = int(1, 12) * 5, k = ms * 3.6;
+      return numQ({ text: `Combien font ${ms} m/s en km/h ?`,
+        exp: `<p>1 m/s = 3 600 m par heure = 3,6 km/h. Donc ${ms} × 3,6 = ${kmh(k)}.</p><p>Repère : m/s → km/h, on multiplie par 3,6 ; km/h → m/s, on divise par 3,6.</p>` },
+      k, [ms / 3.6, ms * 60, k * 10, k / 2], { step: 9, min: 1, dp: 1, fmt: kmh });
+    }
+    const ms = int(1, 12) * 5, k = ms * 3.6;
+    return numQ({ text: `Combien font ${nf(k)} km/h en m/s ?`,
+      exp: `<p>km/h → m/s : on divise par 3,6. ${nf(k)} ÷ 3,6 = ${ms} m/s.</p><p>Astuce : diviser par 3,6, c'est diviser par 36 puis multiplier par 10.</p>` },
+    ms, [k * 3.6, k / 60, k * 1000 / 60, ms * 2], { step: 5, min: 1, dp: 1, fmt: v => nf(v, 1) + ' m/s' });
+  });
+
+  def('conv.unit', 'conv', 2, 'Aires, volumes, capacités', () => {
+    const [u1, u2, f] = pick([['m²', 'cm²', 1e4], ['ha', 'm²', 1e4], ['km²', 'ha', 100], ['m²', 'dm²', 100], ['km²', 'm²', 1e6], ['m³', 'L', 1000], ['L', 'cm³', 1000], ['dm³', 'mL', 1000], ['m³', 'dm³', 1000], ['cm³', 'L', 0.001], ['mL', 'L', 0.001], ['cm²', 'm²', 0.0001], ['a', 'm²', 100]]);
+    const v = f >= 1 ? int(2, 95) / 10 : f === 0.001 ? int(1, 40) * 50 : int(1, 9) * 1000;
+    const ans = Math.round(v * f * 1e4) / 1e4;
+    const rule = f >= 1 ? `1 ${u1} = ${nf(f)} ${u2}, donc ${nf(v)} × ${nf(f)} = ${nf(ans, 4)} ${u2}` : `1 ${u2} = ${nf(1 / f)} ${u1}, donc ${nf(v)} ÷ ${nf(1 / f)} = ${nf(ans, 4)} ${u2}`;
+    return numQ({ text: `Combien font ${nf(v)} ${u1} en ${u2} ?`,
+      exp: `<p>${rule}.</p><p>Repères : longueurs × 10 d'une unité à l'autre, aires × 100, volumes × 1 000. 1 L = 1 dm³ ; 1 ha = 10 000 m².</p>` },
+    ans, [ans * 10, ans / 10, ans * 100, ans / 100], { step: ans, min: 1e-4, dp: 4, fmt: x => nf(x, 4) + ' ' + u2 });
+  });
+
+  def('conv.sum', 'conv', 1, 'Additionner des durées', () => {
+    let h1, m1, h2, m2; do { h1 = int(1, 4); m1 = int(1, 11) * 5; h2 = int(1, 4); m2 = int(1, 11) * 5; } while (m1 + m2 < 60);
+    const a = h1 * 60 + m1, b = h2 * 60 + m2, ans = a + b;
+    return numQ({ text: `Combien font ${dur(a)} + ${dur(b)} ?`,
+      exp: `<p>Heures : ${h1} + ${h2} = ${h1 + h2} h. Minutes : ${m1} + ${m2} = ${m1 + m2} min = 1 h ${pad(m1 + m2 - 60)}.</p><p>Total : ${dur(ans)}. On retient 1 h dès qu'on dépasse 60 minutes, pas 100.</p>` },
+    ans, [ans - 60, ans + 60, ans - 40, ans + 10], { step: 5, min: 1, dp: 0, fmt: dur });
+  });
+
+  // ===== Rencontres et salutations =====
+  def('salut.hand', 'salut', 1, 'Poignées de main', () => {
+    const N = int(5, 30), ans = N * (N - 1) / 2;
+    const text = pick([`Lors d'une soirée, ${N} invités se serrent tous la main, une fois chacun avec chacun. Combien y a-t-il de poignées de main ?`,
+      `${N} chefs d'État veulent tous une ligne téléphonique directe avec chacun des autres. Combien de lignes faut-il installer ?`,
+      `Dans un championnat de ${N} équipes, chaque équipe rencontre une seule fois chacune des autres. Combien de matchs sont joués ?`,
+      `${N} amis trinquent tous ensemble, chacun une fois avec chacun des autres. Combien entend-on de tintements de verres ?`]);
+    return numQ({ text, exp: `<p>Chacun des ${N} est relié aux ${N - 1} autres : ${N} × ${N - 1} = ${N * (N - 1)}, mais chaque lien est compté deux fois.</p><p>Formule : N × (N − 1) ÷ 2 = ${ans}.</p>` },
+      ans, [N * (N - 1), N * N, N * (N + 1) / 2, (N - 1) * (N - 2) / 2], { step: N, min: 1, dp: 0 });
+  });
+
+  def('salut.var', 'salut', 1, 'Aller-retour, bises, tournois', () => {
+    const v = int(0, 2);
+    if (v === 0) {
+      const N = int(6, 20), ans = N * (N - 1);
+      return numQ({ text: `Dans un championnat de ${N} équipes, chaque équipe rencontre deux fois chacune des autres (aller et retour). Combien de matchs sont joués ?`,
+        exp: `<p>En aller simple : ${N} × ${N - 1} ÷ 2 = ${ans / 2} matchs. Avec le retour, deux fois plus : N × (N − 1) = ${ans}.</p>` },
+      ans, [ans / 2, N * N, 2 * N, ans + N], { step: N, min: 1, dp: 0 });
+    }
+    if (v === 1) {
+      const N = int(5, 20), ans = N * (N - 1);
+      return numQ({ text: `À une fête, ${N} personnes se font toutes la bise, deux bises par personne rencontrée. Combien de bises sont échangées en tout ?`,
+        exp: `<p>Il y a ${N} × ${N - 1} ÷ 2 = ${ans / 2} paires, et 2 bises par paire : N × (N − 1) = ${ans}.</p>` },
+      ans, [ans / 2, 2 * ans, N * N, ans - N], { step: N, min: 1, dp: 0 });
+    }
+    const N = pick([8, 12, 16, 20, 24, 32, 48, 64, 100]);
+    return numQ({ text: `Un tournoi à élimination directe réunit ${N} joueurs : chaque match élimine le perdant, jusqu'au vainqueur. Combien de matchs sont joués ?`,
+      exp: `<p>Chaque match élimine exactement un joueur. Pour garder un seul vainqueur, il faut éliminer ${N} − 1 joueurs : ${N - 1} matchs.</p>` },
+    N - 1, [N, N / 2, N * (N - 1) / 2, N - 2], { min: 1, dp: 0 });
+  });
+
+  def('salut.inv', 'salut', 2, 'Retrouver le nombre de personnes', () => {
+    const N = int(6, 25), H = N * (N - 1) / 2;
+    return numQ({ text: `Lors d'un dîner, chaque invité trinque exactement une fois avec chacun des autres. On compte ${H} tintements de verres. Combien y a-t-il d'invités ?`,
+      exp: `<p>N × (N − 1) ÷ 2 = ${H}, donc N × (N − 1) = ${2 * H}.</p><p>Cherche deux nombres consécutifs dont le produit vaut ${2 * H} : ${N} × ${N - 1} ✓. Ou teste les réponses.</p>` },
+    N, [N + 1, N - 1, Math.round(Math.sqrt(H)), N + 2], { min: 2, dp: 0 });
+  });
+
+  def('salut.teams', 'salut', 3, 'Deux équipes face à face', () => {
+    const n = int(4, 15), H = n * n;
+    return numQ({ text: `Avant un match, chaque joueur d'une équipe serre la main de chaque joueur de l'équipe adverse. Les deux équipes ont le même nombre de joueurs et on compte ${H} poignées de main. Combien de joueurs par équipe ?`,
+      exp: `<p>Chacun des n joueurs serre n mains adverses : n × n = ${H}, donc n = ${n}.</p><p>Lis bien l'énoncé : si tout le monde se serrait la main, coéquipiers compris, ce serait N × (N − 1) ÷ 2 avec N = ${2 * n} joueurs.</p>` },
+    n, [n + 1, n - 1, Math.round(H / 2), 2 * n], { min: 1, dp: 0 });
+  });
+
   // ---------- Automatismes (pavé numérique) ----------
   const dec = (n, dp) => { const s = String(n).padStart(dp + 1, '0'); const i = s.slice(0, -dp), f = s.slice(-dp).replace(/0+$/, ''); return f ? i + ',' + f : i; };
   const AUTO = {
@@ -376,6 +582,32 @@
       <li>Note nécessaire = total visé − total déjà obtenu.</li>
       <li>Nombres consécutifs (ou régulièrement espacés) : moyenne = terme du milieu = (premier + dernier) ÷ 2.</li>
       <li>Moyenne pondérée : Σ (note × coef) ÷ Σ coef.</li></ul>`,
+    vit: `<ul>
+      <li>V = D ÷ T, D = V × T, T = D ÷ V. Mets tout dans les mêmes unités : <span class="k">45 min = 3/4 h</span>, jamais 0,45 h.</li>
+      <li>Moyenne sur un aller-retour (même distance) : <b>2 × V₁ × V₂ ÷ (V₁ + V₂)</b>. Jamais la moyenne des vitesses.</li>
+      <li>Distances différentes : distance totale ÷ temps total.</li>
+      <li><b>Croisement</b> (sens opposés) : on additionne les vitesses. Temps = distance ÷ (V₁ + V₂).</li>
+      <li><b>Rattrapage</b> (même sens) : temps = avance ÷ (V₂ − V₁). L'avance = distance déjà parcourue par le premier.</li>
+      <li>Départ différé : fais d'abord rouler le premier seul, retire cette distance, puis applique la formule du croisement.</li></ul>`,
+    trav: `<ul>
+      <li>À deux, on additionne les vitesses de travail : <b>1/T = 1/T₁ + 1/T₂</b>, soit T = T₁ × T₂ ÷ (T₁ + T₂).</li>
+      <li>Le temps à deux est toujours plus court que celui du plus rapide seul : ça élimine des réponses.</li>
+      <li>Retrouver le temps d'un seul : 1/T₂ = 1/T − 1/T₁.</li>
+      <li>Production = cadence × temps. Même unité de temps partout.</li>
+      <li>Plus de monde ou plus d'heures par jour : le travail total ne change pas (ouvriers × jours = constante). Proportion <b>inverse</b>.</li></ul>`,
+    conv: `<ul>
+      <li>Heures décimales : la partie après la virgule × 60. <span class="k">2,5 h = 2 h 30</span>, <span class="k">0,1 h = 6 min</span>, <span class="k">0,75 h = 45 min</span>.</li>
+      <li>Fractions d'heure : 1/6 h = 10 min · 1/4 h = 15 min · 1/3 h = 20 min · 2/3 h = 40 min.</li>
+      <li>m/s → km/h : × 3,6. km/h → m/s : ÷ 3,6.</li>
+      <li>Longueurs : × 10 d'une unité à l'autre ; aires : × 100 ; volumes : × 1 000.</li>
+      <li>1 L = 1 dm³ = 1 000 cm³ ; 1 m³ = 1 000 L ; 1 ha = 10 000 m² ; 1 a = 100 m².</li>
+      <li>1 jour = 1 440 min = 86 400 s. Additionner des durées : on retient 1 h à 60 minutes.</li></ul>`,
+    salut: `<ul>
+      <li>N personnes qui se saluent toutes une fois : <b>N × (N − 1) ÷ 2</b>. Même formule pour les lignes téléphoniques, les verres qui trinquent, un championnat en aller simple.</li>
+      <li>Aller-retour, ou 2 bises par personne : <b>N × (N − 1)</b>.</li>
+      <li>Tournoi à élimination directe : <b>N − 1</b> matchs (un éliminé par match).</li>
+      <li>Retrouver N : N × (N − 1) = 2 × total. Cherche deux nombres consécutifs, ou teste les réponses.</li>
+      <li>Deux groupes de n qui se saluent entre groupes seulement : n × n.</li></ul>`,
   };
 
   // ---------- API ----------

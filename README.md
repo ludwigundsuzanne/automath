@@ -1,7 +1,7 @@
 # AutoMath
 
-Application de calcul mental : carrés de 1 à 20 et tables de 2 à 9.
-Entraînement adaptatif, chrono 60 s et fiche de révision.
+Préparation au sous-test de calcul du TAGE MAGE (objectif 36–41/60) et calcul mental.
+Séance du jour d'environ 20 minutes : échauffement, révisions espacées, notion du jour, défi chrono.
 
 En ligne : https://ludwigundsuzanne.github.io/automath/
 
@@ -10,7 +10,11 @@ C'est une application web installable (PWA) : ouverte dans Chrome sur Android,
 
 ## Fichiers
 
-- `index.html` : toute l'application (interface, styles, logique).
+- `index.html` : la structure des écrans.
+- `js/gen.js` : chapitres, générateurs de questions (QCM à 5 réponses), automatismes et fiches méthode.
+- `js/app.js` : accueil, séance du jour, chapitres, progrès, note estimée et révisions.
+- `js/mental.js` : onglet Mental (carrés et tables).
+- `css/base.css`, `css/app.css` : styles et charte.
 - `manifest.webmanifest` : nom, couleurs et icônes de l'app installée.
 - `sw.js` : service worker, pour le hors ligne et les mises à jour automatiques.
 - `icons/` : icônes et favicon, issues du kit de logo AutoMath.
@@ -23,9 +27,15 @@ ne jamais réécrire le nom avec une police.
 
 ## Mettre à jour
 
-Modifier `index.html`, puis publier. Le service worker charge la nouvelle version
+Modifier les fichiers, puis publier (commit + push). Le service worker charge la nouvelle version
 dès que le téléphone est en ligne ; la progression (stockée sur l'appareil) est conservée.
 En cas de changement de la liste des fichiers mis en cache, augmenter `CACHE` dans `sw.js`.
+
+## Vérifier les générateurs
+
+```
+node -e "console.log(require('./js/gen.js').selfTest())"
+```
 
 ## Tester en local
 

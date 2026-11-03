@@ -1,10 +1,15 @@
 // Service worker d'AutoMath : l'app marche hors ligne et se met à jour toute seule.
 // Fichiers de l'app : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Polices Google : cache d'abord.
-const CACHE = 'automath-v2';
+const CACHE = 'automath-v3';
 const SHELL = [
   './',
   './index.html',
+  './css/base.css',
+  './css/app.css',
+  './js/mental.js',
+  './js/gen.js',
+  './js/app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

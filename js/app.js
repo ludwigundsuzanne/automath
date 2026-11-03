@@ -25,7 +25,8 @@
 
   // ---------- État (stocké sur l'appareil) ----------
   const load = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
-  const S = Object.assign({ stats: {}, chaps: {}, auto: {}, cards: [], streak: null, session: null, prac: null, history: {}, lastNotion: null, total: 0 }, load(KEY) || {});
+  const S = Object.assign({ stats: {}, chaps: {}, auto: {}, cards: [], streak: null, session: null, prac: null, history: {}, lastNotion: null, total: 0, errs: [] }, load(KEY) || {});
+  if (!Array.isArray(S.errs)) S.errs = [];
   if (!S.streak) {
     // reprend la série de jours de l'ancienne version (objectif de 30 réponses rapides)
     const old = (load('carres.v1') || {}).streak;
@@ -48,10 +49,53 @@
   }
   const evaluated = () => G.CHAPTERS.filter(c => chapMastery(c.id) !== null).length;
 
-  function recordQ(q, ok, ms) {
+  function recordQ(q, ok, ms, cause) {
     const r = [ok ? 1 : 0, Math.round(ms / 1000)];
     for (const [o, k] of [[S.stats, q.type], [S.chaps, q.chap]]) { (o[k] ||= []).push(r); if (o[k].length > 40) o[k].shift(); }
     S.total++;
+    if (!ok) { S.errs.push([dayKey(), q.type, cause || '?']); if (S.errs.length > 200) S.errs.shift(); }
+    return srUpdate(q.type, ok, r[1]);
+  }
+
+  // ---------- Répétition espacée par notion ----------
+  // Chaque notion (type de question) a un niveau 0-5 et une date de prochaine révision.
+  //  ratée → niveau baisse (d'un cran si elle était acquise, sinon à 0), revue demain et 3 questions plus tard ;
+  //  juste mais lente → revue demain ; juste et rapide → l'écart s'allonge : 1, 3, 7, 14 puis 30 jours.
+  //  Le niveau ne monte qu'une fois par jour : c'est la régularité sur plusieurs jours qui fait la maîtrise.
+  const SR_DAYS = [1, 1, 3, 7, 14, 30];
+  const TARGET = { 1: 45, 2: 70, 3: 90 }; // temps visé (s) selon la difficulté propre de la notion
+  const target = type => TARGET[(G.TYPES[type] || {}).lvl || 2];
+  function srUpdate(type, ok, sec) {
+    const s = (S.sr[type] ||= { box: 0, due: dayKey(), n: 0 });
+    const before = s.box;
+    s.n++; s.last = dayKey();
+    if (!ok) { s.box = s.box >= 3 ? s.box - 1 : 0; s.due = dayKey(1); }
+    else if (sec > target(type)) { s.box = Math.max(1, s.box); s.due = dayKey(1); }
+    else {
+      if (s.up !== dayKey()) { s.box = Math.min(5, s.box + 1); s.up = dayKey(); }
+      s.due = dayKey(SR_DAYS[s.box]);
+    }
+    const mastered = s.box >= 4 && before < 4 && !s.mAt;
+    if (mastered) s.mAt = dayKey();
+    return mastered;
+  }
+  const NOTION_STATUS = b => (b === undefined ? ['new', 'Nouvelle'] : b <= 1 ? ['weak', 'À revoir'] : b <= 3 ? ['mid', 'En cours'] : b === 4 ? ['good', 'Maîtrisée'] : ['top', 'Acquise']);
+  const dueNotions = (o = 0) => Object.entries(S.sr).filter(([t, s]) => G.TYPES[t] && s.due <= dayKey(o))
+    .sort(([, a], [, b]) => a.box - b.box || (a.due < b.due ? -1 : 1)).map(([t]) => t);
+  // difficulté proposée : on commence facile, on monte avec la maîtrise
+  const diffFor = type => { const b = (S.sr[type] || { box: 0 }).box; return b <= 1 ? 1 : b <= 3 ? 2 : 3; };
+
+  // Reprise des données des versions précédentes (statistiques et révisions), sans rien effacer
+  function migrate() {
+    if (S.sr) return;
+    S.sr = {};
+    for (const [type, h] of Object.entries(S.stats || {})) {
+      if (!G.TYPES[type]) continue;
+      let box = 0;
+      for (const [ok, sec] of h.slice(-8)) box = !ok ? (box >= 3 ? box - 1 : 0) : sec > target(type) ? Math.max(1, box) : Math.min(3, box + 1);
+      const card = (S.cards || []).find(c => c.type === type);
+      S.sr[type] = { box, n: h.length, last: dayKey(), due: card ? card.due : box <= 1 ? dayKey() : dayKey(SR_DAYS[box]) };
+    }
   }
   function recordAuto(cat, ok, ms) {
     const a = (S.auto[cat] ||= { box: -1, n: 0, ok: 0 });
@@ -60,36 +104,52 @@
     else a.box = 0;
   }
 
-  // ---------- Révisions espacées : un type raté revient dans 1, 3 puis 7 jours ----------
-  const INTERVALS = [1, 3, 7];
-  function scheduleMiss(type) {
-    const c = S.cards.find(c => c.type === type);
-    if (c) { c.step = 0; c.due = dayKey(1); } else S.cards.push({ type, step: 0, due: dayKey(1) });
-  }
-  function reviewResult(type, ok) {
-    const c = S.cards.find(c => c.type === type); if (!c) return;
-    if (!ok) { c.step = 0; c.due = dayKey(1); return; }
-    c.step++;
-    if (c.step >= INTERVALS.length) S.cards = S.cards.filter(x => x !== c); else c.due = dayKey(INTERVALS[c.step]);
-  }
-  const dueCards = (o = 0) => S.cards.filter(c => c.due <= dayKey(o));
-
   // ---------- Choix des questions ----------
   const ready = () => G.CHAPTERS.filter(c => c.ready);
   const chapOf = id => G.CHAPTERS.find(c => c.id === id);
   function wpick(items, w) { let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let i = 0; i < items.length; i++) if ((r -= w[i]) <= 0) return items[i]; return items[items.length - 1]; }
-  function pickType(chap, prev) {
-    const all = G.typesOf(chap), pool = all.length > 1 ? all.filter(t => t !== prev) : all;
-    return wpick(pool, pool.map(t => { const m = typeMastery(t); return m === null ? 1.2 : Math.max(0.25, 1.1 - m); }));
+  const recentErrors = (type, n = 3) => (S.stats[type] || []).slice(-n).filter(r => !r[0]).length;
+  // Poids d'une notion : faible maîtrise, erreurs récentes et révision en retard la font remonter.
+  // En apprentissage, les notions difficiles n'arrivent qu'une fois le chapitre un peu maîtrisé ; le défi chrono, lui, mélange tout.
+  function pickType(chap, prev, exam = false) {
+    const all = G.typesOf(chap), pool = all.length > 1 ? all.filter(t => t !== prev) : all, cm = chapMastery(chap);
+    return wpick(pool, pool.map(t => {
+      const s = S.sr[t], m = typeMastery(t), lvl = G.TYPES[t].lvl;
+      let w = m === null ? 1.2 : Math.max(0.25, 1.1 - m) + 0.3 * recentErrors(t) + (s && s.due <= dayKey() ? 0.4 : 0);
+      if (!exam && lvl === 2 && cm === null && chapCount(chap) < 3) w *= 0.5;
+      if (!exam && lvl === 3 && (cm === null || cm < 0.4)) w *= 0.2;
+      return w;
+    }));
   }
-  function series(chap, n) { const out = []; let prev = null; for (let i = 0; i < n; i++) { const t = pickType(chap, prev); prev = t; out.push(G.gen(t)); } return out; }
+  const genFor = t => G.gen(t, diffFor(t));
+  function series(chap, n) { const out = []; let prev = null; for (let i = 0; i < n; i++) { const t = pickType(chap, prev); prev = t; out.push(genFor(t)); } return out; }
   function mixed(n) {
     const out = []; let prev = null;
     for (let i = 0; i < n; i++) {
       const pool = ready().filter(c => c.id !== prev);
       const c = wpick(pool, pool.map(c => c.w * (1.15 - (chapMastery(c.id) ?? 0.3))));
-      prev = c.id; out.push(G.gen(pickType(c.id, null)));
+      prev = c.id; const t = pickType(c.id, null, true); out.push(G.gen(t, Math.max(2, diffFor(t))));
     }
+    return out;
+  }
+
+  // ---------- Tes 3 priorités du moment ----------
+  function priorities() {
+    const cands = [];
+    for (const c of ready()) for (const t of G.typesOf(c.id)) {
+      const s = S.sr[t], h = S.stats[t] || [];
+      if (!s || !h.length) { cands.push({ t, c, score: c.w * 0.45 + (G.TYPES[t].lvl === 1 ? 0.01 : 0), why: 'Jamais travaillée' }); continue; }
+      const m = typeMastery(t) ?? 0, err = recentErrors(t), due = s.due <= dayKey();
+      if (s.box >= 4 && !due && !err) continue;
+      const late = due ? Math.round((new Date() - new Date(s.due)) / 864e5) : 0;
+      const why = err ? (h.length === 1 ? 'Ratée la dernière fois' : `${plural(err, 'erreur')} sur tes ${Math.min(3, h.length)} dernières réponses`) : due ? (late > 0 ? `À réviser depuis ${plural(late, 'jour')}` : 'À réviser aujourd\'hui')
+        : avg(h.slice(-3).map(r => r[1])) > target(t) ? `Trop lente : ${Math.round(avg(h.slice(-3).map(r => r[1])))} s en moyenne, objectif ${target(t)} s` : `Maîtrise ${Math.round(m * 100)} %`;
+      cands.push({ t, c, score: c.w * ((1 - m) + 0.35 * err + (due ? 0.3 : 0)), why });
+    }
+    cands.sort((a, b) => b.score - a.score);
+    const out = [], used = new Set();
+    for (const x of cands) { if (out.length < 3 && !used.has(x.c.id)) { out.push(x); used.add(x.c.id); } }
+    for (const x of cands) { if (out.length < 3 && !out.includes(x)) out.push(x); }
     return out;
   }
   // un chapitre jamais vu passe en priorité, dans cet ordre
@@ -110,33 +170,36 @@
     while (out.length < n) {
       const cat = wpick(cats, cats.map(c => { const b = (S.auto[c] || { box: -1 }).box; return b < 0 ? 4 : 6 - b; }));
       const q = G.AUTO[cat].f(); if (q.text === prev) continue;
-      prev = q.text; out.push({ cat, text: q.text, a: q.a });
+      prev = q.text; out.push({ cat, text: q.text, a: q.a, tip: q.tip || G.AUTO[cat].tip });
     }
     return out;
   }
 
   // ---------- Séances ----------
   function planBlocks() {
-    const due = dueCards().length, ch = chooseNotion();
+    const due = dueNotions().length, ch = chooseNotion();
     return [{ id: 'warm', title: 'Échauffement' }, ...(due ? [{ id: 'rev', title: 'Révisions', n: Math.min(due, 8) }] : []),
       { id: 'notion', title: chapOf(ch).name, chap: ch }, { id: 'defi', title: 'Défi chrono' }];
   }
   function newDaily(kind) {
     const blocks = planBlocks().map(p => {
       if (p.id === 'warm') return { ...p, items: warmItems(12) };
-      if (p.id === 'rev') return { ...p, items: dueCards().slice(0, 8).map(c => G.gen(c.type)) };
+      if (p.id === 'rev') return { ...p, items: dueNotions().slice(0, 8).map(genFor) };
       if (p.id === 'notion') return { ...p, intro: true, items: series(p.chap, 8) };
       return { ...p, timed: DEFI_SEC, items: mixed(4) };
     });
     blocks.forEach(b => { b.i = 0; b.res = []; });
-    return { date: dayKey(), kind, blocks, b: 0, startEst: estimate(), done: false };
+    return { date: dayKey(), kind, blocks, b: 0, startEst: estimate(), done: false, mastered: [] };
   }
-  const newPractice = ch => ({ date: dayKey(), kind: 'prac', b: 0, startEst: estimate(), done: false,
+  const newPractice = ch => ({ date: dayKey(), kind: 'prac', b: 0, startEst: estimate(), done: false, mastered: [],
     blocks: [{ id: 'prac', title: chapOf(ch).name, chap: ch, items: series(ch, 10), i: 0, res: [] }] });
+  // entraînement ciblé sur une notion (depuis les priorités) : 6 questions de difficulté croissante
+  const newFocus = t => ({ date: dayKey(), kind: 'prac', b: 0, startEst: estimate(), done: false, mastered: [],
+    blocks: [{ id: 'prac', title: G.TYPES[t].label, chap: G.TYPES[t].chap, items: [1, 1, 2, 2, 3, 3].map(d => G.gen(t, Math.max(d, diffFor(t) - 1))), i: 0, res: [] }] });
 
   const blockName = b => (b.id === 'notion' ? 'Notion du jour' : b.title);
-  const blockDesc = b => ({ warm: '12 calculs au pavé numérique', rev: `${plural(b.items ? b.items.length : b.n, 'question')} ratée${(b.items ? b.items.length : b.n) > 1 ? 's' : ''} ces derniers jours`,
-    notion: `${b.title} : fiche, puis 8 questions`, defi: '4 questions mélangées, 80 s chacune', prac: '10 questions' })[b.id];
+  const blockDesc = b => ({ warm: '12 calculs au pavé numérique', rev: `${plural(b.items ? b.items.length : b.n, 'notion')} à revoir aujourd'hui`,
+    notion: `${b.title} : fiche, puis 8 questions`, defi: '4 questions mélangées, 80 s chacune', prac: `${b.items ? b.items.length : 10} questions` })[b.id];
   const blockTime = b => ({ warm: '3 min', rev: '5 min', notion: '10 min', defi: '5 min' })[b.id];
 
   // ---------- Navigation ----------
@@ -177,7 +240,9 @@
       const st = running ? (i < s.b ? 'done' : i === s.b ? 'cur' : '') : doneToday ? 'done' : '';
       return `<li class="${st}"><span class="ic">${st === 'done' ? ICON.check : ''}</span><span>${blockName(b)}${b.id === 'notion' ? `<small>${b.title}</small>` : ''}</span><span class="d">${blockTime(b)}</span></li>`;
     }).join('');
-    const pending = S.cards.length;
+    const prio = priorities();
+    const prioHtml = prio.length ? `<div class="box prio"><p class="eyebrow">Tes 3 priorités</p>${prio.map(x => `<div class="prio-row"><div class="prio-t"><b>${G.TYPES[x.t].label}</b><span>${x.c.name} · ${x.why}</span></div><button class="btn2 prio-go" data-focus="${x.t}">Travailler</button></div>`).join('')}</div>` : '';
+    const dueN = dueNotions().length;
     $('scr-home').innerHTML = `
       <div class="box">
         <div class="count"><span>${count}</span><span class="chip-streak${k ? ' on' : ''}" title="Jours d'affilée">${ICON.flame}${k}</span></div>
@@ -187,9 +252,12 @@
       </div>
       ${action}
       ${doneToday && !running ? '' : `<ul class="steps" aria-label="Déroulé de la séance">${rows}</ul>`}
-      ${pending ? `<p class="sub small center">${plural(pending, 'type')} de question${pending > 1 ? 's' : ''} en révision · ${dueCards().length} à revoir aujourd'hui</p>` : ''}`;
+      ${prioHtml}
+      ${dueN ? `<p class="sub small center">${plural(dueN, 'notion')} à réviser aujourd'hui</p>` : ''}`;
     $('h-go').onclick = startDaily;
+    $('scr-home').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
   }
+  function startFocus(t) { S.prac = newFocus(t); save(); runRef = 'prac'; go('run'); }
   function startDaily() {
     const s = S.session;
     if (!(s && s.date === dayKey() && !s.done)) { S.session = newDaily(S.streak.last === dayKey() ? 'bonus' : 'daily'); save(); }
@@ -250,7 +318,7 @@
       return `<button class="opt${cls}" data-i="${i}"${a ? ' tabindex="-1"' : ''}><span class="l">${LET[i]}</span><span class="v">${c.h}</span></button>`;
     }).join('');
     el.innerHTML = topBar(s, subOf(blk)) + (blk.timed && !a ? '<div class="pbar timer" id="r-timer"><div style="width:100%"></div></div>' : pbar(blk)) + `
-      <div class="box"><p class="qtext">${q.text}</p></div>
+      <div class="box">${q.retry ? '<span class="retry-chip">Question de vérification</span>' : ''}<p class="qtext">${q.text}</p></div>
       <div class="opts${a ? ' answered' : ''}" id="r-opts">${opts}</div>
       ${a ? feedback(q, a) + '<button class="big-btn cont" id="r-next">Continuer</button>'
         : blk.timed ? '<p class="nudge" id="r-nudge" hidden>Temps écoulé : réponds quand même, au hasard s\'il le faut. Une réponse ne coûte rien.</p>' : ''}`;
@@ -281,20 +349,41 @@
     };
     tick(); clock = setInterval(tick, 250);
   }
+  function tipBox(id) {
+    const t = id && G.TIP[id]; if (!t) return '';
+    return `<div class="exb tip"><span class="exl">Astuce · ${t.title}</span><p>${t.rule}</p><p class="ex">${t.ex}</p></div>`;
+  }
   function feedback(q, a) {
-    const sec = Math.round(a.ms / 1000);
-    const head = a.ok ? (sec <= DEFI_SEC ? `Juste · ${sec} s` : `Juste, mais en ${sec} s : vise moins de 80 s`) : `Raté · la bonne réponse est ${LET[q.ans]}`;
-    return `<div class="expl ${a.ok ? 'good' : 'bad'}" id="r-expl" aria-live="polite"><h3>${head}</h3>${q.exp}${a.ok ? '' : '<p class="again">Ce type de question reviendra dans tes révisions.</p>'}</div>`;
+    const sec = Math.round(a.ms / 1000), tg = target(q.type);
+    let head, diag = '';
+    if (a.ok) head = sec <= tg ? `Juste · ${sec} s` : `Juste, mais en ${sec} s (objectif ${tg} s)`;
+    else {
+      head = `Raté · la bonne réponse est ${LET[q.ans]}`;
+      const why = (q.choices[a.c] || {}).why;
+      diag = why ? `<div class="diag"><b>${G.CAUSES[why[0]]}</b><span>${why[1]}</span></div>`
+        : '<div class="diag"><b>Erreur de calcul probable</b><span>Ta réponse ne correspond à aucune erreur type : refais le calcul étape par étape avec la méthode ci-dessous.</span></div>';
+    }
+    // juste : on montre seulement la méthode rapide et l'astuce ; raté : tout, piège compris
+    return `<div class="expl ${a.ok ? 'good' : 'bad'}" id="r-expl" aria-live="polite"><h3>${head}${a.m ? ' · notion maîtrisée' : ''}</h3>${diag}
+      <div class="exs${a.ok ? ' short' : ''}">${q.exp}${tipBox(q.tip)}</div>
+      ${a.ok ? '' : `<p class="again">${a.retry ? 'Une question similaire arrive dans 3 questions pour vérifier.' : 'Cette notion reviendra demain dans tes révisions.'}</p>`}</div>`;
   }
   function choose(i) {
     const s = cur(), blk = s.blocks[s.b], q = blk.items[blk.i];
     if (blk.answered) return;
-    const ms = performance.now() - t0, ok = i === q.ans;
+    const ms = performance.now() - t0, ok = i === q.ans, why = (q.choices[i] || {}).why;
     stopClock();
-    recordQ(q, ok, ms);
-    blk.res.push({ ok, ms });
-    if (blk.id === 'rev') reviewResult(q.type, ok); else if (!ok) scheduleMiss(q.type);
-    blk.answered = { c: i, ok, ms };
+    const m = recordQ(q, ok, ms, ok ? null : why ? why[0] : '?');
+    if (m) (s.mastered ||= []).push(q.type);
+    blk.res.push({ ok, ms, type: q.type });
+    // ratée : une question similaire (même notion, nouveaux nombres) revient 3 questions plus tard, une fois par bloc
+    let retry = false;
+    if (!ok && !blk.timed && !(blk.retried ||= []).includes(q.type)) {
+      blk.retried.push(q.type);
+      blk.items.splice(Math.min(blk.i + 4, blk.items.length), 0, { ...G.gen(q.type, Math.max(1, diffFor(q.type))), retry: true });
+      retry = true;
+    }
+    blk.answered = { c: i, ok, ms, m, retry };
     save(); renderRun();
   }
   function next() {
@@ -313,7 +402,7 @@
       <div class="card${a ? (a.ok ? ' good' : ' bad') : ''}"><div class="wq">${it.text}</div>
         <div class="ans" id="r-ans">${a ? (a.ok ? a.v : `<s>${a.v}</s><span class="reveal">${it.a}</span>`) : ''}</div></div>
       <p class="hint">${a ? (a.ok ? `Juste en <b>${fmtS(a.ms)}</b>` : G.AUTO[it.cat].label) : 'Validation automatique dès que le nombre de chiffres est atteint'}</p>
-      ${a && !a.ok ? '<button class="big-btn" id="r-next">Continuer</button>' : `<div class="pad pad-num" id="r-pad">${keys}</div>`}`;
+      ${a && !a.ok ? (it.tip ? `<div class="expl">${tipBox(it.tip)}</div>` : '') + '<button class="big-btn" id="r-next">Continuer</button>' : `<div class="pad pad-num" id="r-pad">${keys}</div>`}`;
     if (a) {
       if (a.ok) advanceTimer = setTimeout(next, 450); else $('r-next').onclick = next;
       return;
@@ -359,7 +448,8 @@
     const all = s.blocks.flatMap(b => b.res), ok = all.filter(r => r.ok).length;
     const qcm = s.blocks.filter(b => b.id !== 'warm').flatMap(b => b.res);
     const avgT = qcm.length ? Math.round(avg(qcm.map(r => r.ms)) / 1000) : null;
-    const delta = s.endEst - s.startEst, k = streakNow(), due = dueCards(1).length, prac = s.kind === 'prac';
+    const delta = s.endEst - s.startEst, k = streakNow(), due = dueNotions(1).length, prac = s.kind === 'prac';
+    const mast = [...new Set(s.mastered || [])];
     const rows = s.blocks.map(b => `<tr><td>${blockName(b)}${b.id === 'notion' ? ` · ${b.title}` : ''}</td><td class="num">${b.res.filter(r => r.ok).length}/${b.res.length}</td></tr>`).join('');
     el.innerHTML = `
       <div class="box center"><span class="big-check">${ICON.check}</span><h2 class="t">${prac ? 'Entraînement terminé' : 'Séance terminée'}</h2>
@@ -369,19 +459,44 @@
         <div class="stat"><small>Note estimée</small><b>${s.endEst}${delta ? `<span class="delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</span>` : ''}</b></div>
         ${avgT !== null ? `<div class="stat"><small>Temps moyen</small><b>${avgT} s</b></div>` : ''}
       </div>
+      ${mast.length ? `<div class="box mastered"><p class="eyebrow">Notions maîtrisées aujourd'hui</p>${mast.map(t => `<p>${ICON.check}${G.TYPES[t].label}</p>`).join('')}</div>` : ''}
       <div class="box"><table class="tbl">${rows}</table></div>
-      <p class="sub center">${due ? `Demain : ${plural(due, 'question')} à revoir.` : 'Rien à revoir demain.'}</p>
+      <p class="sub center">${due ? `Demain : ${plural(due, 'notion')} à revoir.` : 'Rien à revoir demain.'}</p>
       <button class="big-btn" id="r-home">${prac ? 'Retour aux chapitres' : 'Retour à l\'accueil'}</button>`;
     $('r-home').onclick = () => { if (prac) { S.prac = null; save(); } go(prac ? 'chap' : 'home'); };
   }
 
   // ---------- Chapitres et fiches ----------
+  // statut d'une astuce : maîtrisée quand les notions qui l'utilisent sont maîtrisées
+  function tipStatus(t) {
+    const boxes = [...t.types.filter(x => S.sr[x]).map(x => S.sr[x].box), ...t.autos.filter(x => S.auto[x] && S.auto[x].box >= 0).map(x => S.auto[x].box)];
+    const total = t.types.length + t.autos.length;
+    if (!total) return ['ref', 'À connaître'];
+    if (!boxes.length) return ['new', 'À découvrir'];
+    return boxes.length === total && Math.min(...boxes) >= 4 ? ['good', 'Maîtrisée'] : ['mid', 'En cours'];
+  }
+  let chapTab = 'chap';
+  function renderTips(el) {
+    const counts = { good: 0 }; G.TIPS.forEach(t => { const [k] = tipStatus(t); counts[k] = (counts[k] || 0) + 1; });
+    el.innerHTML += `<p class="sub small">${counts.good} astuce${counts.good > 1 ? 's' : ''} maîtrisée${counts.good > 1 ? 's' : ''} sur ${G.TIPS.length}. Une astuce est maîtrisée quand tu réussis vite et régulièrement les questions qui l'utilisent.</p>`
+      + G.TIP_GROUPS.map(g => {
+        const ts = G.TIPS.filter(t => t.chap === g.id); if (!ts.length) return '';
+        return `<p class="eyebrow tip-group">${g.name}</p>` + ts.map(t => {
+          const [k, l] = tipStatus(t);
+          return `<div class="box tipcard"><div class="ch-h"><span class="ch-n">${t.title}</span><span class="pill ${k}">${l}</span></div><p>${t.rule}</p><p class="ex">${t.ex}</p></div>`;
+        }).join('');
+      }).join('');
+  }
   function renderChap() {
     const el = $('scr-chap');
-    el.innerHTML = `<div><h2 class="t">Chapitres</h2><p class="sub">Dans l'ordre d'arrivée dans l'app, puis par poids au TAGE MAGE.</p></div>` + G.CHAPTERS.map(c => {
+    el.innerHTML = `<div><h2 class="t">Chapitres</h2></div>
+      <div class="seg" role="tablist"><button role="tab" data-tab="chap" aria-selected="${chapTab === 'chap'}">Chapitres</button><button role="tab" data-tab="tips" aria-selected="${chapTab === 'tips'}">Astuces</button></div>`;
+    if (chapTab === 'tips') renderTips(el);
+    else el.innerHTML += `<p class="sub small">Dans l'ordre d'arrivée dans l'app, puis par poids au TAGE MAGE.</p>` + G.CHAPTERS.map(c => {
       const m = chapMastery(c.id), n = chapCount(c.id), dots = '●'.repeat(c.freq) + '○'.repeat(5 - c.freq);
+      const ts = G.typesOf(c.id), mastered = ts.filter(t => (S.sr[t] || {}).box >= 4).length;
       const status = !c.ready ? (c.step === 'mars' ? 'Pour le passage de mars' : `Arrive à l'étape ${c.step}`)
-        : n === 0 ? 'Pas encore travaillé' : m === null ? `${plural(n, 'question')} · encore ${5 - n} pour évaluer` : `Maîtrise ${Math.round(m * 100)} % · ${plural(n, 'question')}`;
+        : n === 0 ? 'Pas encore travaillé' : m === null ? `${plural(n, 'question')} · encore ${5 - n} pour évaluer` : `Maîtrise ${Math.round(m * 100)} % · ${mastered}/${ts.length} notions maîtrisées`;
       return `<div class="box ch${c.ready ? '' : ' off'}">
         <div class="ch-h"><span class="ch-n">${c.name}</span><span class="dots" title="Fréquence au TAGE MAGE : ${c.freq} sur 5">${dots}</span></div>
         <p class="sub small">Fiches ${c.fiches} · ${status}</p>
@@ -390,8 +505,8 @@
       </div>`;
     }).join('');
     el.onclick = e => {
-      const f = e.target.closest('[data-fiche]'), p = e.target.closest('[data-prac]');
-      if (f) openFiche(f.dataset.fiche); else if (p) startPractice(p.dataset.prac);
+      const f = e.target.closest('[data-fiche]'), p = e.target.closest('[data-prac]'), tb = e.target.closest('[data-tab]');
+      if (tb) { chapTab = tb.dataset.tab; renderChap(); } else if (f) openFiche(f.dataset.fiche); else if (p) startPractice(p.dataset.prac);
     };
   }
   function openFiche(id) {
@@ -418,11 +533,20 @@
       <polyline points="${line}" class="ln"/><circle cx="${x(pts.length - 1)}" cy="${y(last)}" r="4" class="dot"/></svg>
       <div class="gauge-l"><span>${pts[0][0].slice(8)}/${pts[0][0].slice(5, 7)}</span><span>Zone verte : objectif 36–41</span><span>aujourd'hui</span></div>`;
   }
+  // erreurs des 30 derniers jours, par cause
+  function errBox() {
+    const since = dayKey(-30);
+    const recent = S.errs.filter(e => e[0] >= since);
+    if (!recent.length) return '';
+    const by = {}; recent.forEach(e => { by[e[2]] = (by[e[2]] || 0) + 1; });
+    const rows = Object.entries(by).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<tr><td>${G.CAUSES[c] || 'Erreur de calcul probable'}</td><td class="num">${n}</td></tr>`).join('');
+    return `<div class="box"><p class="eyebrow">Tes erreurs sur 30 jours</p><table class="tbl"><tbody>${rows}</tbody></table></div>`;
+  }
   function renderProg() {
     const est = estimate(), k = streakNow();
     const chapRows = ready().map(c => {
-      const h = S.chaps[c.id] || [], m = chapMastery(c.id);
-      return `<tr><td>${c.name}</td><td class="num">${m === null ? '–' : Math.round(m * 100) + ' %'}</td><td class="num">${h.length}</td><td class="num">${h.length ? Math.round(avg(h.slice(-15).map(r => r[1]))) + ' s' : '–'}</td></tr>`;
+      const h = S.chaps[c.id] || [], m = chapMastery(c.id), ts = G.typesOf(c.id), ok = ts.filter(t => (S.sr[t] || {}).box >= 4).length;
+      return `<tr><td>${c.name}<span class="sub small block">${ok}/${ts.length} notions maîtrisées</span></td><td class="num">${m === null ? '–' : Math.round(m * 100) + ' %'}</td><td class="num">${h.length}</td><td class="num">${h.length ? Math.round(avg(h.slice(-15).map(r => r[1]))) + ' s' : '–'}</td></tr>`;
     }).join('');
     const autoRows = Object.entries(G.AUTO).map(([id, a]) => {
       const st = S.auto[id], b = st ? st.box : -1;
@@ -441,7 +565,8 @@
       <div class="box"><p class="eyebrow">Par chapitre</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Chapitre</th><th class="num">Maîtrise</th><th class="num">Faites</th><th class="num">Temps</th></tr></thead><tbody>${chapRows}</tbody></table></div>
         <p class="sub small">Maîtrise sur les 15 dernières questions : juste en moins de 90 s = 1 point, juste mais lent = 0,6.</p></div>
       <div class="box"><p class="eyebrow">Automatismes</p><table class="tbl"><tbody>${autoRows}</tbody></table></div>
-      <p class="sub small center">${plural(S.cards.length, 'type')} de question en révision, ${dueCards().length} à revoir aujourd'hui.</p>
+      ${errBox()}
+      <p class="sub small center">${plural(Object.keys(S.sr).length, 'notion')} suivie${Object.keys(S.sr).length > 1 ? 's' : ''}, ${dueNotions().length} à réviser aujourd'hui.</p>
       <div class="reset" id="p-reset"><button class="ghost-btn" id="p-reset-ask">Réinitialiser ma progression TAGE MAGE</button></div>`;
     $('p-reset-ask').onclick = () => {
       $('p-reset').innerHTML = '<span>Effacer la note, les statistiques, les révisions et la série ? Le calcul mental n\'est pas touché.</span><button class="ghost-btn danger" id="p-yes">Effacer</button><button class="ghost-btn" id="p-no">Annuler</button>';
@@ -472,5 +597,6 @@
   });
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden && AM.view === 'home') renderHome(); });
+  migrate(); save();
   go('home');
 })();

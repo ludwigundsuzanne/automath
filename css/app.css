@@ -139,3 +139,40 @@
 
 /* Calcul mental dans le nouvel en-tête : on gagne un peu de hauteur */
 #scr-mental .q { font-size: clamp(56px, 17vw, 96px); }
+
+/* Étape 3a : priorités, corrections structurées, diagnostic, astuces */
+.prio { display: flex; flex-direction: column; gap: 10px; }
+.prio .eyebrow { margin-bottom: 0; }
+.prio-row { display: flex; align-items: center; gap: 10px; }
+.prio-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.prio-t b { font-size: 15px; }
+.prio-t span { font-size: 13px; color: var(--muted); line-height: 1.35; }
+.prio-go { height: 38px; padding: 0 12px; flex: none; font-size: 14px; }
+
+.retry-chip { display: inline-block; margin-bottom: 8px; font-size: 12px; font-weight: 700; color: var(--accent-text); background: var(--accent-soft); border-radius: 99px; padding: 3px 10px; }
+.diag { display: flex; flex-direction: column; gap: 2px; background: var(--bad-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.diag b { color: var(--bad); font-size: 14px; }
+.diag span { font-size: 14px; line-height: 1.45; }
+.exs { display: flex; flex-direction: column; gap: 8px; }
+.exb { border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.exb p { margin: 0 0 4px; }
+.exb p:last-child { margin-bottom: 0; }
+.exl { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 3px; }
+.exb.fast .exl { color: var(--accent-text); }
+.exb.trap .exl { color: var(--bad); }
+.exb.tip { background: color-mix(in srgb, var(--mark) 18%, var(--paper)); }
+.exb.tip .exl { color: var(--ink); }
+.ex { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.exs.short .exb.trap, .exs.short .exb.classic { display: none; }
+.mastered p { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.mastered svg { width: 18px; height: 18px; color: var(--good); flex: none; }
+.block { display: block; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.seg button { border: 0; background: transparent; border-radius: 9px; padding: 9px 6px; font-weight: 600; font-size: 15px; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.tip-group { margin: 6px 0 -4px; }
+.tipcard p { margin: 6px 0 0; line-height: 1.5; }
+.pill { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; white-space: nowrap; background: var(--bg); color: var(--muted); }
+.pill.mid { background: var(--accent-soft); color: var(--accent-text); }
+.pill.good { background: var(--good-soft); color: var(--good); }

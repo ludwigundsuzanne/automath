@@ -29,6 +29,7 @@
 
   <section class="scr" id="scr-home" aria-label="Accueil"></section>
   <section class="scr" id="scr-chap" aria-label="Chapitres" hidden></section>
+  <section class="scr" id="scr-chapter" aria-label="Chapitre" hidden></section>
   <section class="scr" id="scr-fiche" aria-label="Fiche méthode" hidden></section>
   <section class="scr" id="scr-tips" aria-label="Astuces" hidden></section>
   <section class="scr" id="scr-prog" aria-label="Progrès" hidden></section>
@@ -36,10 +37,10 @@
 
   <!-- Calcul mental : carrés et tables (js/mental.js) -->
   <section class="scr" id="scr-mental" aria-label="Calcul mental" hidden>
-  <button class="ghost-btn back-btn" id="m-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>S'entraîner</button>
   <header class="top">
     <div class="brand-row">
-      <span class="mental-title">Calcul mental</span>
+      <button class="icon-btn" id="m-back" aria-label="Retour à S'entraîner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <h2 class="mental-title">Calcul mental</h2>
       <div class="topic" role="group" aria-label="Thème">
         <button id="topic-sq" data-topic="sq" aria-pressed="true">Carrés</button>
         <button id="topic-tb" data-topic="tb" aria-pressed="false">Tables</button>

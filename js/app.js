@@ -213,7 +213,7 @@
 
   // ---------- Navigation ----------
   window.AM = { view: 'home' };
-  const SCREENS = ['home', 'chap', 'tips', 'mental', 'prog', 'fiche', 'run'];
+  const SCREENS = ['home', 'chap', 'chapter', 'tips', 'mental', 'prog', 'fiche', 'run'];
   let runRef = null;
   const cur = () => S[runRef];
   function go(v, navAs) {
@@ -222,11 +222,12 @@
     stopClock();
     AM.view = v;
     SCREENS.forEach(s => { $('scr-' + s).hidden = s !== v; });
-    $('hdr').hidden = v === 'run';
-    document.body.classList.toggle('focus', v === 'run'); // pas de barre d'onglets pendant les exercices
-    const tab = navAs || (v === 'mental' || v === 'fiche' ? 'chap' : v);
+    const focus = v === 'run' || v === 'mental'; // pas de barre d'onglets pendant les exercices
+    $('hdr').hidden = focus;
+    document.body.classList.toggle('focus', focus);
+    const tab = navAs || (v === 'mental' || v === 'fiche' || v === 'chapter' ? 'chap' : v);
     document.querySelectorAll('.tabbar [data-go]').forEach(b => { if (b.dataset.go === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    if (v === 'home') renderHome(); else if (v === 'chap') renderChap(); else if (v === 'tips') renderTipsScreen(); else if (v === 'prog') renderProg(); else if (v === 'run') renderRun();
+    if (v === 'home') renderHome(); else if (v === 'chap') renderChap(); else if (v === 'chapter') renderChapter(); else if (v === 'tips') renderTipsScreen(); else if (v === 'prog') renderProg(); else if (v === 'run') renderRun();
     window.scrollTo(0, 0);
   }
   document.querySelector('.tabbar').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
@@ -278,7 +279,7 @@
     $('scr-home').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
     $('scr-home').querySelectorAll('[data-len]').forEach(b => { b.onclick = () => { S.prefs.len = +b.dataset.len; save(); renderHome(); }; });
   }
-  function startFocus(t) { S.prac = { ...newFocus(t), from: AM.view === 'prog' ? 'prog' : 'home' }; save(); runRef = 'prac'; go('run'); }
+  function startFocus(t) { S.prac = { ...newFocus(t), from: AM.view === 'prog' ? 'prog' : AM.view === 'chapter' ? 'chapter' : 'home' }; save(); runRef = 'prac'; go('run'); }
   function startDaily() {
     const s = S.session;
     if (!(s && s.date === dayKey() && !s.done)) { S.session = newDaily(S.streak.last === dayKey() ? 'bonus' : 'daily'); save(); }
@@ -719,28 +720,51 @@
       <button class="mode" id="m-sprint"><b>Sprint automatismes</b><span>3 min chrono${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button>
       <button class="mode" id="m-mental"><b>Calcul mental</b><span>Carrés et tables</span></button></div>`;
   }
+  const FREQ = ['', 'Rare', 'Peu fréquent', 'Assez fréquent', 'Fréquent', 'Très fréquent'];
+  const chapStatus = c => {
+    const m = chapMastery(c.id), n = chapCount(c.id), ts = G.typesOf(c.id), ok = ts.filter(t => (S.sr[t] || {}).box >= 4).length;
+    return { m, n, ok, total: ts.length, text: n === 0 ? 'Pas encore travaillé' : m === null ? `Encore ${5 - n} question${5 - n > 1 ? 's' : ''} pour évaluer` : `Maîtrise ${Math.round(m * 100)} % · ${ok}/${ts.length} notions` };
+  };
   function renderChap() {
-    const el = $('scr-chap');
+    const el = $('scr-chap'), later = G.CHAPTERS.filter(c => !c.ready);
     el.innerHTML = `<div><h2 class="t">S'entraîner</h2></div>${modesHtml()}
-      <p class="eyebrow tip-group">Chapitres</p>` + G.CHAPTERS.map(c => {
-      const m = chapMastery(c.id), n = chapCount(c.id), dots = '●'.repeat(c.freq) + '○'.repeat(5 - c.freq);
-      const ts = G.typesOf(c.id), mastered = ts.filter(t => (S.sr[t] || {}).box >= 4).length;
-      const status = !c.ready ? (c.step === 'mars' ? 'Pour le passage de mars' : `Arrive à l'étape ${c.step}`)
-        : n === 0 ? 'Pas encore travaillé' : m === null ? `${plural(n, 'question')} · encore ${5 - n} pour évaluer` : `Maîtrise ${Math.round(m * 100)} % · ${mastered}/${ts.length} notions maîtrisées`;
-      return `<div class="box ch${c.ready ? '' : ' off'}">
-        <div class="ch-h"><span class="ch-n">${c.name}</span><span class="dots" title="Fréquence au TAGE MAGE : ${c.freq} sur 5">${dots}</span></div>
-        <p class="sub small">Fiches ${c.fiches} · ${status}</p>
-        ${c.ready ? `<div class="mbar"><div style="width:${Math.round((m ?? 0) * 100)}%"></div></div>
-          <div class="acts"><button class="btn2" data-fiche="${c.id}">Fiche</button><button class="btn1" data-prac="${c.id}">S'entraîner</button></div>` : ''}
-      </div>`;
-    }).join('');
+      <p class="eyebrow tip-group">Chapitres</p><div class="chlist">` + ready().map(c => {
+      const st = chapStatus(c);
+      return `<button class="row-link chrow" data-chap="${c.id}"><span class="rl-t">${c.name}</span>
+        <span class="rl-s">${FREQ[c.freq]} · ${st.text}</span>
+        <span class="mbar" aria-hidden="true"><span style="width:${Math.round((st.m ?? 0) * 100)}%"></span></span>${ICON.chev}</button>`;
+    }).join('') + `</div>${later.length ? `<p class="sub small later">Pour le passage de mars : ${later.map(c => c.name).join(', ')}</p>` : ''}`;
     $('m-exam').onclick = startExam;
     $('m-sprint').onclick = startSprint;
     $('m-mental').onclick = () => go('mental');
-    el.onclick = e => {
-      const f = e.target.closest('[data-fiche]'), p = e.target.closest('[data-prac]');
-      if (f) openFiche(f.dataset.fiche); else if (p) startPractice(p.dataset.prac);
-    };
+    el.querySelectorAll('[data-chap]').forEach(b => { b.onclick = () => openChapter(b.dataset.chap); });
+  }
+  // page d'un chapitre : fiche, entraînement, notions une par une, astuces
+  let curChap = null;
+  function openChapter(id) { curChap = id; go('chapter', 'chap'); }
+  function renderChapter() {
+    const c = curChap && chapOf(curChap);
+    if (!c) { go('chap'); return; }
+    const st = chapStatus(c), tips = G.TIPS.filter(t => t.chap === c.id);
+    const notions = G.typesOf(c.id).map(t => {
+      const s = S.sr[t], [k, l] = NOTION_STATUS(s ? s.box : undefined), last = (S.stats[t] || []).slice(-10);
+      const info = last.length ? `${Math.round(100 * last.filter(r => r[0]).length / last.length)} % de réussite · ${Math.round(avg(last.map(r => r[1])))} s en moyenne` : 'Jamais travaillée';
+      return `<button class="nrow" data-focus="${t}"><span class="nrow-t"><b>${G.TYPES[t].label}</b><small>${info}</small></span><span class="pill ${k}">${l}</span>${ICON.chev}</button>`;
+    }).join('');
+    $('scr-chapter').innerHTML = `<button class="ghost-btn back-btn" id="c-back">${ICON.back}S'entraîner</button>
+      <div class="box chead"><p class="rl-k">${FREQ[c.freq]} au TAGE MAGE · fiches ${c.fiches}</p><h2 class="t">${c.name}</h2>
+        <div class="mbar"><div style="width:${Math.round((st.m ?? 0) * 100)}%"></div></div><p class="sub small">${st.text}</p>
+        <button class="big-btn" id="c-prac">S'entraîner · 10 questions</button></div>
+      <button class="row-link" id="c-fiche"><span class="rl-t">Fiche de cours</span><span class="rl-s">La méthode et des exemples résolus, à lire avant de t'entraîner</span>${ICON.chev}</button>
+      <div class="box"><p class="eyebrow">Notions</p><p class="sub small">Touche une notion pour 6 questions ciblées, de plus en plus dures.</p><div class="nlist">${notions}</div></div>
+      ${tips.length ? `<details class="box more ctips"><summary>${plural(tips.length, 'astuce')} pour ce chapitre${ICON.down}</summary>${tips.map(t => {
+        const [k, l] = tipStatus(t);
+        return `<div class="tipcard"><div class="ch-h"><span class="ch-n">${t.title}</span><span class="pill ${k}">${l}</span></div><p>${t.rule}</p><p class="ex">${t.ex}</p></div>`;
+      }).join('')}</details>` : ''}`;
+    $('c-back').onclick = () => go('chap');
+    $('c-prac').onclick = () => startPractice(c.id);
+    $('c-fiche').onclick = () => openFiche(c.id);
+    $('scr-chapter').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
   }
   function renderTipsScreen() {
     const el = $('scr-tips');
@@ -749,14 +773,15 @@
   }
   function openFiche(id) {
     const c = chapOf(id);
-    $('scr-fiche').innerHTML = `<button class="ghost-btn back-btn" id="f-back">${ICON.back}Chapitres</button>
+    curChap = id;
+    $('scr-fiche').innerHTML = `<button class="ghost-btn back-btn" id="f-back">${ICON.back}${c.name}</button>
       <div class="box fiche"><p class="eyebrow">Fiches ${c.fiches} de ton manuel</p><h2 class="t">${c.name}</h2>${G.FICHES[id]}</div>
       <button class="big-btn" id="f-prac">S'entraîner : 10 questions</button>`;
     go('fiche', 'chap');
-    $('f-back').onclick = () => go('chap');
+    $('f-back').onclick = () => go('chapter');
     $('f-prac').onclick = () => startPractice(id);
   }
-  function startPractice(id) { S.prac = newPractice(id); save(); runRef = 'prac'; go('run'); }
+  function startPractice(id) { curChap = id; S.prac = { ...newPractice(id), from: 'chapter' }; save(); runRef = 'prac'; go('run'); }
 
   // ---------- Progrès ----------
   function chart() {

@@ -702,16 +702,59 @@
     if (!boxes.length) return ['new', 'À découvrir'];
     return boxes.length === total && Math.min(...boxes) >= 4 ? ['good', 'Maîtrisée'] : ['mid', 'En cours'];
   }
+  const SHORT = { mental: 'Calcul mental', eq: 'Équations', pct: 'Pourcentages', moy: 'Moyennes', frac: 'Fractions', vit: 'Vitesses', trav: 'Travail',
+    conv: 'Conversions', salut: 'Salutations', geo: 'Géométrie', proba: 'Probabilités', int: 'Intérêts', pui: 'Puissances', ent: 'Entiers' };
+  const tipCard = t => {
+    const [k, l] = tipStatus(t);
+    return `<details class="box tipc"><summary><span class="tipc-t">${t.title}</span><span class="pill ${k}">${l}</span>${ICON.down}</summary><p>${t.rule}</p><p class="ex">${t.ex}</p></details>`;
+  };
   function renderTips(el) {
-    const counts = { good: 0 }; G.TIPS.forEach(t => { const [k] = tipStatus(t); counts[k] = (counts[k] || 0) + 1; });
-    el.innerHTML += `<p class="sub small">${counts.good} astuce${counts.good > 1 ? 's' : ''} maîtrisée${counts.good > 1 ? 's' : ''} sur ${G.TIPS.length}. Une astuce est maîtrisée quand tu réussis vite et régulièrement les questions qui l'utilisent.</p>`
-      + G.TIP_GROUPS.map(g => {
-        const ts = G.TIPS.filter(t => t.chap === g.id); if (!ts.length) return '';
-        return `<p class="eyebrow tip-group">${g.name}</p>` + ts.map(t => {
-          const [k, l] = tipStatus(t);
-          return `<div class="box tipcard"><div class="ch-h"><span class="ch-n">${t.title}</span><span class="pill ${k}">${l}</span></div><p>${t.rule}</p><p class="ex">${t.ex}</p></div>`;
-        }).join('');
-      }).join('');
+    const f = S.prefs.tipf || 'all', groups = G.TIP_GROUPS.filter(g => G.TIPS.some(t => t.chap === g.id));
+    const good = G.TIPS.filter(t => tipStatus(t)[0] === 'good').length;
+    el.innerHTML += `<p class="sub">${good} maîtrisée${good > 1 ? 's' : ''} sur ${G.TIPS.length} : une astuce l'est quand tu réussis vite et régulièrement les questions qui l'utilisent.</p>
+      <button class="big-btn" id="tr-go">Réviser les astuces</button>
+      <div class="fchips" role="group" aria-label="Filtrer par chapitre"><button data-tf="all" aria-pressed="${f === 'all'}">Toutes</button>${groups.map(g => `<button data-tf="${g.id}" aria-pressed="${f === g.id}">${SHORT[g.id] || g.name}</button>`).join('')}</div>`
+      + groups.filter(g => f === 'all' || g.id === f).map(g => `<p class="eyebrow tip-group">${g.name}</p>` + G.TIPS.filter(t => t.chap === g.id).map(tipCard).join('')).join('');
+    $('tr-go').onclick = () => startTipReview(f);
+    el.querySelectorAll('[data-tf]').forEach(b => { b.onclick = () => { S.prefs.tipf = b.dataset.tf; save(); renderTipsScreen(); const c = el.querySelector('[aria-pressed="true"]'); if (c) c.scrollIntoView({ inline: 'center', block: 'nearest' }); }; });
+  }
+  // révision en cartes : la règle est cachée, on la retrouve de tête puis on se note
+  let tipRev = null;
+  function startTipReview(f) {
+    S.tipRev = S.tipRev || {};
+    const pool = G.TIPS.filter(t => f === 'all' || t.chap === f), r = t => S.tipRev[t.id];
+    const rank = t => (!r(t) ? 0 : !r(t).k ? 1 : 2);
+    const ids = shuffle(pool.slice()).sort((a, b) => rank(a) - rank(b) || ((r(a) || {}).last || '').localeCompare((r(b) || {}).last || '')).slice(0, 10).map(t => t.id);
+    tipRev = { ids, i: 0, ok: 0, shown: false };
+    $('hdr').hidden = true; document.body.classList.add('focus');
+    renderTipReview();
+  }
+  function renderTipReview() {
+    const el = $('scr-tips'), v = tipRev;
+    window.scrollTo(0, 0);
+    if (v.i >= v.ids.length) {
+      el.innerHTML = `<div class="runq"><div class="box center"><span class="big-check">${ICON.check}</span><h2 class="t">Révision terminée</h2>
+        <p class="sub">${v.ok} sur ${v.ids.length} retrouvées de tête. Celles à revoir reviendront en premier la prochaine fois.</p></div>
+        <button class="big-btn" id="tr-end">Terminer</button></div>`;
+      $('tr-end').onclick = () => { tipRev = null; go('tips'); };
+      return;
+    }
+    const t = G.TIP[v.ids[v.i]];
+    el.innerHTML = `<div class="runq"><div class="run-top"><button class="icon-btn" id="tr-quit" aria-label="Arrêter la révision">${ICON.x}</button>
+        <span class="sub">Astuce ${v.i + 1} sur ${v.ids.length}</span></div>
+      <div class="box flash"><p class="rl-k">${G.TIP_GROUPS.find(g => g.id === t.chap).name}</p><h2 class="t">${t.title}</h2>
+        ${v.shown ? `<p>${t.rule}</p><p class="ex">${t.ex}</p>` : '<p class="sub">Retrouve la règle de tête, puis vérifie.</p>'}</div>
+      ${v.shown ? '<div class="acts flash-acts"><button class="btn2" id="tr-ko">À revoir</button><button class="btn1" id="tr-ok">Je savais</button></div>'
+        : '<button class="big-btn flash-acts" id="tr-show">Voir la règle</button>'}</div>`;
+    $('tr-quit').onclick = () => { tipRev = null; go('tips'); };
+    if (!v.shown) { $('tr-show').onclick = () => { v.shown = true; renderTipReview(); }; return; }
+    const mark = ok => {
+      const r = S.tipRev[t.id] || { n: 0, ok: 0 };
+      S.tipRev[t.id] = { n: r.n + 1, ok: r.ok + (ok ? 1 : 0), k: ok, last: dayKey() };
+      save(); buzz(ok); v.ok += ok ? 1 : 0; v.i++; v.shown = false; renderTipReview();
+    };
+    $('tr-ok').onclick = () => mark(true);
+    $('tr-ko').onclick = () => mark(false);
   }
   function modesHtml() {
     const ex = S.exam && !S.exam.done ? S.exam : null, exLeft = ex ? examLeft(ex) : 0, bestExam = S.exams.length ? Math.max(...S.exams.map(x => x.score)) : null;
@@ -757,10 +800,7 @@
         <button class="big-btn" id="c-prac">S'entraîner · 10 questions</button></div>
       <button class="row-link" id="c-fiche"><span class="rl-t">Fiche de cours</span><span class="rl-s">La méthode et des exemples résolus, à lire avant de t'entraîner</span>${ICON.chev}</button>
       <div class="box"><p class="eyebrow">Notions</p><p class="sub small">Touche une notion pour 6 questions ciblées, de plus en plus dures.</p><div class="nlist">${notions}</div></div>
-      ${tips.length ? `<details class="box more ctips"><summary>${plural(tips.length, 'astuce')} pour ce chapitre${ICON.down}</summary>${tips.map(t => {
-        const [k, l] = tipStatus(t);
-        return `<div class="tipcard"><div class="ch-h"><span class="ch-n">${t.title}</span><span class="pill ${k}">${l}</span></div><p>${t.rule}</p><p class="ex">${t.ex}</p></div>`;
-      }).join('')}</details>` : ''}`;
+      ${tips.length ? `<p class="eyebrow tip-group">Astuces du chapitre</p>${tips.map(tipCard).join('')}` : ''}`;
     $('c-back').onclick = () => go('chap');
     $('c-prac').onclick = () => startPractice(c.id);
     $('c-fiche').onclick = () => openFiche(c.id);
@@ -768,6 +808,7 @@
   }
   function renderTipsScreen() {
     const el = $('scr-tips');
+    tipRev = null;
     el.innerHTML = '<div><h2 class="t">Astuces</h2></div>';
     renderTips(el);
   }
@@ -837,6 +878,8 @@
     const ok = G.TIPS.filter(t => tipStatus(t)[0] === 'good').length;
     return `<div class="box"><p class="eyebrow">Astuces</p><p>${ok} maîtrisée${ok > 1 ? 's' : ''} sur ${G.TIPS.length}</p><button class="btn2 wide-btn" id="p-tips" style="margin-top:8px">Voir la bibliothèque d'astuces</button></div>`;
   }
+  const PROG_VIEWS = [['all', 'Résumé'], ['notions', 'Notions'], ['errs', 'Erreurs']];
+  let progView = 'all';
   function renderProg() {
     const est = estimate(), k = streakNow();
     const chapRows = ready().map(c => {
@@ -848,28 +891,33 @@
       const lvl = b < 0 ? '<span class="sub">À découvrir</span>' : `<span class="lvl" aria-label="Niveau ${b} sur 5">${'●'.repeat(b)}${'○'.repeat(5 - b)}</span>`;
       return `<tr><td>${a.label}</td><td class="num">${lvl}</td><td class="num">${st ? `${st.ok}/${st.n}` : '–'}</td></tr>`;
     }).join('');
-    $('scr-prog').innerHTML = `
-      <div><h2 class="t">Progrès</h2></div>
-      <div class="box"><div class="est"><span class="v">${est}</span><span class="u">/60</span><span class="l">note estimée en calcul</span></div>${gauge(est)}</div>
+    const view = PROG_VIEWS.some(([id]) => id === progView) ? progView : 'all';
+    const body = {
+      all: `<div class="box"><div class="est"><span class="v">${est}</span><span class="u">/60</span><span class="l">note estimée en calcul</span></div>${gauge(est)}</div>
       <div class="box"><p class="eyebrow">Évolution</p>${chart()}</div>
       <div class="stat-row">
         <div class="stat"><small>Série</small><b>${k} j</b></div>
         <div class="stat"><small>Record</small><b>${S.streak.best || 0} j</b></div>
         <div class="stat"><small>Questions</small><b>${S.total}</b></div>
       </div>
-      <div class="box"><p class="eyebrow">Par chapitre</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Chapitre</th><th class="num">Maîtrise</th><th class="num">Faites</th><th class="num">Temps</th></tr></thead><tbody>${chapRows}</tbody></table></div>
-        <p class="sub small">Maîtrise sur les 15 dernières questions : juste en moins de 90 s = 1 point, juste mais lent = 0,6.</p></div>
       ${recordsBox()}
-      ${weakBox()}
+      ${tipsBox()}
+      <div class="reset" id="p-reset"><button class="ghost-btn" id="p-reset-ask">Réinitialiser ma progression TAGE MAGE</button></div>`,
+      notions: `<div class="box"><p class="eyebrow">Par chapitre</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Chapitre</th><th class="num">Maîtrise</th><th class="num">Faites</th><th class="num">Temps</th></tr></thead><tbody>${chapRows}</tbody></table></div>
+        <p class="sub small">Maîtrise sur les 15 dernières questions : juste en moins de 90 s = 1 point, juste mais lent = 0,6.</p></div>
       ${notionsBox()}
       <div class="box"><p class="eyebrow">Automatismes</p><table class="tbl"><tbody>${autoRows}</tbody></table></div>
-      ${errBox()}
-      ${tipsBox()}
-      <p class="sub small center">${plural(Object.keys(S.sr).length, 'notion')} suivie${Object.keys(S.sr).length > 1 ? 's' : ''}, ${dueNotions().length} à réviser aujourd'hui.</p>
-      <div class="reset" id="p-reset"><button class="ghost-btn" id="p-reset-ask">Réinitialiser ma progression TAGE MAGE</button></div>`;
+      <p class="sub small center">${plural(Object.keys(S.sr).length, 'notion')} suivie${Object.keys(S.sr).length > 1 ? 's' : ''}, ${dueNotions().length} à réviser aujourd'hui.</p>`,
+      errs: (weakBox() + errBox()) || '<div class="box"><p class="sub">Aucune erreur enregistrée pour l\'instant. Tes notions fragiles et les causes de tes erreurs apparaîtront ici.</p></div>',
+    }[view];
+    $('scr-prog').innerHTML = `
+      <div><h2 class="t">Progrès</h2></div>
+      <div class="seg seg3" role="tablist" aria-label="Vues">${PROG_VIEWS.map(([id, l]) => `<button role="tab" data-pv="${id}" aria-selected="${id === view}">${l}</button>`).join('')}</div>
+      ${body}`;
+    $('scr-prog').querySelectorAll('[data-pv]').forEach(b => { b.onclick = () => { progView = b.dataset.pv; renderProg(); window.scrollTo(0, 0); }; });
     $('scr-prog').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
     const tl = $('p-tips'); if (tl) tl.onclick = () => go('tips');
-    $('p-reset-ask').onclick = () => {
+    if ($('p-reset-ask')) $('p-reset-ask').onclick = () => {
       $('p-reset').innerHTML = '<span>Effacer la note, les statistiques, les révisions et la série ? Le calcul mental n\'est pas touché.</span><button class="ghost-btn danger" id="p-yes">Effacer</button><button class="ghost-btn" id="p-no">Annuler</button>';
       $('p-yes').onclick = () => { try { localStorage.removeItem(KEY); } catch {} location.reload(); };
       $('p-no').onclick = renderProg;

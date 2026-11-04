@@ -19,24 +19,24 @@
 </head>
 <body>
 <div class="app">
-  <header class="hdr" id="hdr">
-    <svg class="mark" viewBox="0 0 256 256" role="img" aria-label="AutoMath"><path class="tile" d="M57.6 0H198.4A57.6 57.6 0 0 1 256 57.6V198.4A57.6 57.6 0 0 1 198.4 256H57.6A57.6 57.6 0 0 1 0 198.4V57.6A57.6 57.6 0 0 1 57.6 0Z"/><path class="glyph" d="M128 48A80 80 0 1 0 172 194.81V205H208V51H172V128A44 44 0 1 1 128 84Z"/></svg>
-    <nav class="nav" aria-label="Navigation">
-      <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg><span>Accueil</span></button>
-      <button data-go="chap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v12H8.5A3.5 3.5 0 0 1 5 16.5z"/><path d="M5 16.5A3.5 3.5 0 0 1 8.5 13H19"/></svg><span>Chapitres</span></button>
-      <button data-go="mental"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span>Mental</span></button>
-      <button data-go="prog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20v-5M12 20V5M19 20v-9"/></svg><span>Progrès</span></button>
-    </nav>
-  </header>
+  <!-- Barre d'onglets en bas, sous le pouce ; masquée pendant les exercices -->
+  <nav class="tabbar" id="hdr" aria-label="Navigation">
+    <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1.1 1.1M17.3 17.3l1.1 1.1M5.6 18.4l1.1-1.1M17.3 6.7l1.1-1.1"/></svg><span>Aujourd'hui</span></button>
+    <button data-go="chap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8"/></svg><span>S'entraîner</span></button>
+    <button data-go="tips"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z"/></svg><span>Astuces</span></button>
+    <button data-go="prog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="M5 15l4.5-4.5 3.5 3 6-6.5"/></svg><span>Progrès</span></button>
+  </nav>
 
   <section class="scr" id="scr-home" aria-label="Accueil"></section>
   <section class="scr" id="scr-chap" aria-label="Chapitres" hidden></section>
   <section class="scr" id="scr-fiche" aria-label="Fiche méthode" hidden></section>
+  <section class="scr" id="scr-tips" aria-label="Astuces" hidden></section>
   <section class="scr" id="scr-prog" aria-label="Progrès" hidden></section>
   <section class="scr" id="scr-run" aria-label="Séance" hidden></section>
 
   <!-- Calcul mental : carrés et tables (js/mental.js) -->
   <section class="scr" id="scr-mental" aria-label="Calcul mental" hidden>
+  <button class="ghost-btn back-btn" id="m-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>S'entraîner</button>
   <header class="top">
     <div class="brand-row">
       <span class="mental-title">Calcul mental</span>

@@ -12,6 +12,8 @@
   const ICON = {
     x: SVG('<path d="M6 6l12 12M18 6L6 18"/>'),
     check: SVG('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    chev: SVG('<path d="M9 5l7 7-7 7"/>').replace('<svg ', '<svg class="chev" '),
+    down: SVG('<path d="M6 9l6 6 6-6"/>'),
     back: SVG('<path d="M15 5l-7 7 7 7"/>'),
     flame: '<svg viewBox="0 0 24 24" class="flame" aria-hidden="true"><path d="M12.6 1.8c.6 3.4 4.9 5.6 4.9 11.2a5.5 5.5 0 0 1-11 0c0-2.4 1.1-4.2 2.4-5.4.1 1.9.9 3.2 2.2 3.4-.3-3.4.1-6.4 1.5-9.2z"/></svg>',
   };
@@ -211,7 +213,7 @@
 
   // ---------- Navigation ----------
   window.AM = { view: 'home' };
-  const SCREENS = ['home', 'chap', 'mental', 'prog', 'fiche', 'run'];
+  const SCREENS = ['home', 'chap', 'tips', 'mental', 'prog', 'fiche', 'run'];
   let runRef = null;
   const cur = () => S[runRef];
   function go(v, navAs) {
@@ -221,12 +223,17 @@
     AM.view = v;
     SCREENS.forEach(s => { $('scr-' + s).hidden = s !== v; });
     $('hdr').hidden = v === 'run';
-    const tab = navAs || v;
-    document.querySelectorAll('.nav [data-go]').forEach(b => { if (b.dataset.go === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    if (v === 'home') renderHome(); else if (v === 'chap') renderChap(); else if (v === 'prog') renderProg(); else if (v === 'run') renderRun();
+    document.body.classList.toggle('focus', v === 'run'); // pas de barre d'onglets pendant les exercices
+    const tab = navAs || (v === 'mental' || v === 'fiche' ? 'chap' : v);
+    document.querySelectorAll('.tabbar [data-go]').forEach(b => { if (b.dataset.go === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    if (v === 'home') renderHome(); else if (v === 'chap') renderChap(); else if (v === 'tips') renderTipsScreen(); else if (v === 'prog') renderProg(); else if (v === 'run') renderRun();
     window.scrollTo(0, 0);
   }
-  document.querySelector('.nav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+  document.querySelector('.tabbar').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+  $('m-back').onclick = () => go('chap');
+  // petite vibration à la réponse (Android) : courte si juste, double si faux
+  const buzz = ok => { try { if (navigator.vibrate) navigator.vibrate(ok ? 12 : [30, 50, 30]); } catch {} };
+  const MARK = '<svg class="mark" viewBox="0 0 256 256" aria-hidden="true"><path class="tile" d="M57.6 0H198.4A57.6 57.6 0 0 1 256 57.6V198.4A57.6 57.6 0 0 1 198.4 256H57.6A57.6 57.6 0 0 1 0 198.4V57.6A57.6 57.6 0 0 1 57.6 0Z"/><path class="glyph" d="M128 48A80 80 0 1 0 172 194.81V205H208V51H172V128A44 44 0 1 1 128 84Z"/></svg>';
 
   // ---------- Accueil ----------
   const streakNow = () => (S.streak.last === dayKey() || S.streak.last === dayKey(-1) ? S.streak.count : 0);
@@ -236,46 +243,42 @@
   }
   function renderHome() {
     if (S.session && S.session.date !== dayKey()) { S.session = null; save(); }
-    const d = daysUntil(), est = estimate(), ev = evaluated(), k = streakNow(), doneToday = S.streak.last === dayKey(), s = S.session;
-    const count = d > 1 ? `TAGE MAGE dans <b>${d} jours</b>` : d === 1 ? 'TAGE MAGE <b>demain</b>' : d === 0 ? 'TAGE MAGE <b>aujourd\'hui</b>' : 'Prochain passage : <b>mars</b>';
-    const running = s && !s.done;
+    const d = daysUntil(), est = estimate(), k = streakNow(), doneToday = S.streak.last === dayKey(), s = S.session, running = s && !s.done;
+    const when = d > 1 ? `TAGE MAGE dans ${d} jours` : d === 1 ? 'TAGE MAGE demain' : d === 0 ? 'TAGE MAGE aujourd\'hui' : 'Prochain passage en mars';
+    const hr = new Date().getHours(), hello = hr >= 18 || hr < 5 ? 'Bonsoir' : 'Bonjour';
     const plan = running ? s.blocks : planBlocks();
-    let action;
-    if (running) action = `<button class="go" id="h-go">Reprendre la séance<small>Bloc ${s.b + 1} sur ${s.blocks.length} · ${blockName(s.blocks[s.b])}</small></button>`;
-    else if (doneToday) action = `<div class="box done-card">${ICON.check}<div><b>Séance du jour terminée</b><p class="sub">Reviens demain pour garder ta série.</p></div></div><button class="ghost-btn wide-btn" id="h-go">Séance bonus</button>`;
-    else action = `<button class="go" id="h-go">Commencer la séance du jour<small>Environ ${S.prefs.len} minutes · tu peux t'arrêter à tout moment</small></button>`;
-    const lenSel = running ? '' : `<div class="len" role="group" aria-label="Durée de la séance"><span>Durée</span>${[10, 20, 30].map(m => `<button data-len="${m}" aria-pressed="${S.prefs.len === m}">${m} min</button>`).join('')}</div>`;
-    const ex = S.exam && !S.exam.done ? S.exam : null, exLeft = ex ? examLeft(ex) : 0, bestExam = S.exams.length ? Math.max(...S.exams.map(x => x.score)) : null;
-    const modes = `<div class="box modes"><p class="eyebrow">Mode examen</p>
-      <button class="mode" id="h-exam"><b>${ex ? (exLeft > 0 ? 'Reprendre l\'épreuve blanche' : 'Épreuve terminée : voir le résultat') : 'Épreuve blanche'}</b><span>${ex && exLeft > 0 ? `${mmss(exLeft)} restantes` : `15 questions · 20 min · barème officiel${bestExam !== null ? ` · record ${bestExam}/60` : ''}`}</span></button>
-      <button class="mode" id="h-sprint"><b>Sprint automatismes</b><span>3 min chrono${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button></div>`;
-    const rows = plan.map((b, i) => {
+    const steps = plan.map((b, i) => {
       const st = running ? (i < s.b ? 'done' : i === s.b ? 'cur' : '') : doneToday ? 'done' : '';
       return `<li class="${st}"><span class="ic">${st === 'done' ? ICON.check : ''}</span><span>${blockName(b)}${b.id === 'notion' ? `<small>${b.title}</small>` : ''}</span><span class="d">${blockTime(b)}</span></li>`;
     }).join('');
-    const prio = priorities();
-    const prioHtml = prio.length ? `<div class="box prio"><p class="eyebrow">Tes 3 priorités</p>${prio.map(x => `<div class="prio-row"><div class="prio-t"><b>${G.TYPES[x.t].label}</b><span>${x.c.name} · ${x.why}</span></div><button class="btn2 prio-go" data-focus="${x.t}">Travailler</button></div>`).join('')}</div>` : '';
-    const dueN = dueNotions().length;
+    let card;
+    if (running) {
+      card = `<div class="sess-h"><b>Séance du jour</b><span class="sub">En cours · bloc ${s.b + 1} sur ${s.blocks.length}</span></div>
+        <ul class="steps" aria-label="Déroulé de la séance">${steps}</ul>
+        <button class="go" id="h-go">Reprendre</button>`;
+    } else if (doneToday) {
+      card = `<div class="done-row">${ICON.check}<div><b>Séance du jour terminée</b><p class="sub">Reviens demain pour garder ta série.</p></div></div>
+        <button class="btn2 wide-btn" id="h-go">Faire une séance bonus</button>`;
+    } else {
+      card = `<div class="sess-h"><b>Séance du jour</b><span class="sub">Environ ${S.prefs.len} minutes · tu peux t'arrêter à tout moment</span></div>
+        <div class="len" role="group" aria-label="Durée de la séance">${[10, 20, 30].map(m => `<button data-len="${m}" aria-pressed="${S.prefs.len === m}">${m} min</button>`).join('')}</div>
+        <ul class="steps" aria-label="Déroulé de la séance">${steps}</ul>
+        <button class="go" id="h-go">Commencer</button>`;
+    }
+    const p = priorities()[0];
     $('scr-home').innerHTML = `
-      <div class="box">
-        <div class="count"><span>${count}</span><span class="chip-streak${k ? ' on' : ''}" title="Jours d'affilée">${ICON.flame}${k}</span></div>
-        <div class="est"><span class="v">${est}</span><span class="u">/60</span><span class="l">note estimée en calcul</span></div>
-        ${gauge(est)}
-        <p class="sub small">${ev === 0 ? 'Pas encore évaluée. Les chapitres pas encore travaillés comptent comme des réponses au hasard.' : `Évaluée sur ${ev} chapitre${ev > 1 ? 's' : ''} sur ${G.CHAPTERS.length}. Les autres comptent comme des réponses au hasard.`}</p>
-      </div>
-      ${action}
-      ${lenSel}
-      ${doneToday && !running ? '' : `<ul class="steps" aria-label="Déroulé de la séance">${rows}</ul>`}
-      ${prioHtml}
-      ${modes}
-      ${dueN ? `<p class="sub small center">${plural(dueN, 'notion')} à réviser aujourd'hui</p>` : ''}`;
+      <div class="today-h">${MARK}<div><p class="hello">${hello}</p><p class="sub">${when}</p></div>
+        <span class="chip-streak${k ? ' on' : ''}" title="Jours d'affilée" aria-label="${plural(k, 'jour')} d'affilée">${ICON.flame}${k}</span></div>
+      <section class="box sess">${card}</section>
+      ${p ? `<button class="row-link" data-focus="${p.t}"><span class="rl-k">Ta priorité</span><span class="rl-t">${G.TYPES[p.t].label}</span><span class="rl-s">${p.c.name} · ${p.why}</span>${ICON.chev}</button>` : ''}
+      <button class="row-link" id="h-note"><span class="rl-k">Note estimée en calcul</span><span class="rl-t">${est}<small>/60</small><span class="rl-s"> · objectif 36</span></span>
+        <span class="mini-gauge" aria-hidden="true"><i style="width:${est / 60 * 100}%"></i><b style="left:${36 / 60 * 100}%"></b></span>${ICON.chev}</button>`;
     $('h-go').onclick = startDaily;
-    $('h-exam').onclick = startExam;
-    $('h-sprint').onclick = startSprint;
+    $('h-note').onclick = () => go('prog');
     $('scr-home').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
     $('scr-home').querySelectorAll('[data-len]').forEach(b => { b.onclick = () => { S.prefs.len = +b.dataset.len; save(); renderHome(); }; });
   }
-  function startFocus(t) { S.prac = newFocus(t); save(); runRef = 'prac'; go('run'); }
+  function startFocus(t) { S.prac = { ...newFocus(t), from: AM.view === 'prog' ? 'prog' : 'home' }; save(); runRef = 'prac'; go('run'); }
   function startDaily() {
     const s = S.session;
     if (!(s && s.date === dayKey() && !s.done)) { S.session = newDaily(S.streak.last === dayKey() ? 'bonus' : 'daily'); save(); }
@@ -288,7 +291,7 @@
   function quit() {
     stopClock();
     if (runRef === 'sprint') S.sprint = null; // un sprint interrompu ne compte pas
-    go(runRef === 'prac' ? 'chap' : 'home');
+    go(runRef === 'prac' ? (S.prac && S.prac.from) || 'chap' : runRef === 'session' ? 'home' : runRef === 'exam' || runRef === 'sprint' ? 'chap' : 'home');
   }
 
   function topBar(s, sub) {
@@ -335,24 +338,40 @@
   }
 
   // --- QCM ---
+  // la question en haut, les réponses ancrées en bas (zone du pouce) ; après la réponse, un panneau de correction les remplace
   function renderQcm(s, blk, q, el) {
     const a = blk.answered;
-    const opts = q.choices.map((c, i) => {
-      const cls = a ? (i === q.ans ? ' ok' : i === a.c ? ' ko' : '') : '';
-      return `<button class="opt${cls}" data-i="${i}"${a ? ' tabindex="-1"' : ''}><span class="l">${LET[i]}</span><span class="v">${c.h}</span></button>`;
-    }).join('');
-    el.innerHTML = topBar(s, subOf(blk)) + (blk.timed && !a ? '<div class="pbar timer" id="r-timer"><div style="width:100%"></div></div>' : pbar(blk)) + `
-      <div class="box">${q.retry ? '<span class="retry-chip">Question de vérification</span>' : ''}<p class="qtext">${q.text}</p></div>
-      <div class="opts${a ? ' answered' : ''}" id="r-opts">${opts}</div>
-      ${a ? feedback(q, a) + '<button class="big-btn cont" id="r-next">Continuer</button>'
-        : blk.timed ? '<p class="nudge" id="r-nudge" hidden>Temps écoulé : réponds quand même, au hasard s\'il le faut. Une réponse ne coûte rien.</p>' : ''}`;
+    const head = topBar(s, subOf(blk)) + (blk.timed && !a ? '<div class="pbar timer" id="r-timer"><div style="width:100%"></div></div>' : pbar(blk));
+    const qbox = `<div class="box qbox">${q.retry ? '<span class="retry-chip">Question de vérification</span>' : ''}<p class="qtext">${q.text}</p></div>`;
     if (a) {
+      el.innerHTML = `<div class="runq">${head}${qbox}${answerPills(q, a)}${sheet(q, a)}</div>`;
+      foldExtras(el);
       $('r-next').onclick = next;
-      requestAnimationFrame(() => { const x = $('r-expl'); if (x && x.getBoundingClientRect().top > innerHeight * 0.6) x.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+      requestAnimationFrame(() => { const b = $('r-next'); if (b && b.getBoundingClientRect().bottom > innerHeight) $('r-expl').scrollIntoView({ block: 'end', behavior: 'smooth' }); });
       return;
     }
+    const opts = q.choices.map((c, i) => `<button class="opt" data-i="${i}"><span class="l">${LET[i]}</span><span class="v">${c.h}</span></button>`).join('');
+    el.innerHTML = `<div class="runq">${head}${qbox}
+      ${blk.timed ? '<p class="nudge" id="r-nudge" hidden>Temps écoulé : réponds quand même, au hasard s\'il le faut. Une réponse ne coûte rien.</p>' : ''}
+      <div class="opts" id="r-opts">${opts}</div></div>`;
     $('r-opts').onclick = e => { const b = e.target.closest('.opt'); if (b) choose(+b.dataset.i); };
     startClock(blk);
+  }
+  function answerPills(q, a) {
+    const r = q.choices[q.ans];
+    return `<div class="apills">${a.ok ? `<span class="ap ok">${ICON.check}${LET[q.ans]} · ${r.h}</span>`
+      : `<span class="ap ko">Toi : ${LET[a.c]} · ${q.choices[a.c].h}</span><span class="ap ok">Réponse : ${LET[q.ans]} · ${r.h}</span>`}</div>`;
+  }
+  // piège, méthode classique et astuce passent dans un dépliable : l'essentiel reste visible sans défiler
+  function foldExtras(root) {
+    root.querySelectorAll('.sheet .exs').forEach(exs => {
+      const more = [...exs.children].filter(n => n.matches('.exb.trap, .exb.classic, .exb.tip'));
+      if (!more.length) return;
+      const names = more.map(n => (n.classList.contains('trap') ? 'Piège' : n.classList.contains('classic') ? 'Méthode classique' : 'Astuce'));
+      const det = document.createElement('details'); det.className = 'more';
+      det.innerHTML = `<summary><span>${names.join(' · ')}</span>${ICON.down}</summary>`;
+      more.forEach(n => det.appendChild(n)); exs.appendChild(det);
+    });
   }
   function startClock(blk) {
     t0 = performance.now();
@@ -377,26 +396,27 @@
     const t = id && G.TIP[id]; if (!t) return '';
     return `<div class="exb tip"><span class="exl">Astuce · ${t.title}</span><p>${t.rule}</p><p class="ex">${t.ex}</p></div>`;
   }
-  function feedback(q, a) {
+  function sheet(q, a) {
     const sec = Math.round(a.ms / 1000), tg = target(q.type);
-    let head, diag = '';
-    if (a.ok) head = sec <= tg ? `Juste · ${sec} s` : `Juste, mais en ${sec} s (objectif ${tg} s)`;
+    let headLine, body = '';
+    if (a.ok) headLine = sec <= tg ? `Juste · ${sec} s` : `Juste, mais lent : ${sec} s (objectif ${tg} s)`;
     else {
-      head = `Raté · la bonne réponse est ${LET[q.ans]}`;
       const why = (q.choices[a.c] || {}).why;
-      diag = why ? `<div class="diag"><b>${G.CAUSES[why[0]]}</b><span>${why[1]}</span></div>`
-        : '<div class="diag"><b>Erreur de calcul probable</b><span>Ta réponse ne correspond à aucune erreur type : refais le calcul étape par étape avec la méthode ci-dessous.</span></div>';
+      headLine = why ? G.CAUSES[why[0]] : 'Erreur de calcul probable';
+      body = `<p class="diag-t">${why ? why[1] : 'Ta réponse ne correspond à aucune erreur type : refais le calcul étape par étape avec la méthode ci-dessous.'}</p>`;
     }
-    // juste : on montre seulement la méthode rapide et l'astuce ; raté : tout, piège compris
-    return `<div class="expl ${a.ok ? 'good' : 'bad'}" id="r-expl" aria-live="polite"><h3>${head}${a.m ? ' · notion maîtrisée' : ''}</h3>${diag}
-      <div class="exs${a.ok ? ' short' : ''}">${q.exp}${tipBox(q.tip)}</div>
-      ${a.ok ? '' : `<p class="again">${a.retry ? 'Une question similaire arrive dans 3 questions pour vérifier.' : 'Cette notion reviendra demain dans tes révisions.'}</p>`}</div>`;
+    return `<div class="sheet ${a.ok ? 'good' : 'bad'}" id="r-expl" aria-live="polite">
+      <div class="sheet-h">${headLine}${a.m ? '<span class="badge">Notion maîtrisée</span>' : ''}</div>${body}
+      <div class="exs">${q.exp}${tipBox(q.tip)}</div>
+      ${a.ok ? '' : `<p class="again">${a.retry ? 'Une question similaire arrive dans 3 questions pour vérifier.' : 'Cette notion reviendra demain dans tes révisions.'}</p>`}
+      <button class="big-btn" id="r-next">Continuer</button></div>`;
   }
   function choose(i) {
     const s = cur(), blk = s.blocks[s.b], q = blk.items[blk.i];
     if (blk.answered) return;
     const ms = performance.now() - t0, ok = i === q.ans, why = (q.choices[i] || {}).why;
     stopClock();
+    buzz(ok);
     const m = recordQ(q, ok, ms, ok ? null : why ? why[0] : '?');
     if (m) (s.mastered ||= []).push(q.type);
     blk.res.push({ ok, ms, type: q.type });
@@ -422,11 +442,11 @@
     const a = blk.answered;
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map(k => k === 'del'
       ? '<button class="k-del" data-k="del" aria-label="Effacer">⌫</button>' : `<button data-k="${k}">${k}</button>`).join('') + '<button class="k-ok wide" data-k="ok">OK</button>';
-    el.innerHTML = topBar(s, subOf(blk)) + pbar(blk) + `
+    el.innerHTML = '<div class="runq">' + topBar(s, subOf(blk)) + pbar(blk) + `
       <div class="card${a ? (a.ok ? ' good' : ' bad') : ''}"><div class="wq">${it.text}</div>
         <div class="ans" id="r-ans">${a ? (a.ok ? a.v : `<s>${a.v}</s><span class="reveal">${it.a}</span>`) : ''}</div></div>
       <p class="hint">${a ? (a.ok ? `Juste en <b>${fmtS(a.ms)}</b>` : G.AUTO[it.cat].label) : 'Validation automatique dès que le nombre de chiffres est atteint'}</p>
-      ${a && !a.ok ? (it.tip ? `<div class="expl">${tipBox(it.tip)}</div>` : '') + '<button class="big-btn" id="r-next">Continuer</button>' : `<div class="pad pad-num" id="r-pad">${keys}</div>`}`;
+      ${a && !a.ok ? `<div class="sheet bad">${it.tip ? `<div class="exs">${tipBox(it.tip)}</div>` : ''}<button class="big-btn" id="r-next">Continuer</button></div>` : `<div class="pad pad-num" id="r-pad">${keys}</div>`}</div>`;
     if (a) {
       if (a.ok) advanceTimer = setTimeout(next, 450); else $('r-next').onclick = next;
       return;
@@ -448,6 +468,7 @@
   }
   function submitNum(blk, it) {
     const ms = performance.now() - t0, v = numBuf.replace(/,$/, ''), ok = v === it.a;
+    buzz(ok);
     stopClock();
     recordAuto(it.cat, ok, ms);
     blk.res.push({ ok, ms });
@@ -486,8 +507,9 @@
       ${mast.length ? `<div class="box mastered"><p class="eyebrow">Notions maîtrisées aujourd'hui</p>${mast.map(t => `<p>${ICON.check}${G.TYPES[t].label}</p>`).join('')}</div>` : ''}
       <div class="box"><table class="tbl">${rows}</table></div>
       <p class="sub center">${due ? `Demain : ${plural(due, 'notion')} à revoir.` : 'Rien à revoir demain.'}</p>
-      <button class="big-btn" id="r-home">${prac ? 'Retour aux chapitres' : 'Retour à l\'accueil'}</button>`;
-    $('r-home').onclick = () => { if (prac) { S.prac = null; save(); } go(prac ? 'chap' : 'home'); };
+      <button class="big-btn" id="r-home">Terminer</button>`;
+    const back = prac ? s.from || 'chap' : 'home';
+    $('r-home').onclick = () => { if (prac) { S.prac = null; save(); } go(back); };
   }
 
   // ---------- Épreuve blanche : 15 questions, 20 minutes, +4 par bonne réponse, 0 sinon ----------
@@ -517,16 +539,17 @@
     if (e.done) { renderExamResult(e, el); return; }
     if (examLeft(e) <= 0) { finishExam(e); return; }
     const q = e.items[e.cur], a = e.ans[e.cur], blank = e.ans.filter(x => x === null).length;
-    el.innerHTML = `<div class="run-top"><button class="icon-btn" id="r-quit" aria-label="Quitter l'épreuve (le chrono continue)">${ICON.x}</button>
+    el.innerHTML = `<div class="runq"><div class="run-top"><button class="icon-btn" id="r-quit" aria-label="Quitter l'épreuve (le chrono continue)">${ICON.x}</button>
       <div class="run-title">Épreuve blanche<small>Question ${e.cur + 1} sur 15 · ${blank} sans réponse</small></div><span class="clock" id="r-clock"></span></div>
       <div class="xgrid" id="x-grid">${e.items.map((_, i) => `<button class="${i === e.cur ? 'cur' : ''}${e.ans[i] !== null ? ' done' : ''}" data-q="${i}" aria-label="Question ${i + 1}${e.ans[i] !== null ? ', répondue' : ''}">${i + 1}</button>`).join('')}</div>
       <div class="box"><p class="qtext">${q.text}</p></div>
       <div class="opts" id="r-opts">${q.choices.map((c, i) => `<button class="opt${a === i ? ' sel' : ''}" data-i="${i}" aria-pressed="${a === i}"><span class="l">${LET[i]}</span><span class="v">${c.h}</span></button>`).join('')}</div>
       <div class="xnav">${e.cur ? '<button class="btn2" id="x-prev">Précédente</button>' : '<span></span>'}${e.cur < 14 ? '<button class="btn2" id="x-next">Suivante</button>' : '<span></span>'}</div>
-      <div id="x-end"><button class="big-btn" id="x-finish">Terminer l'épreuve</button></div>`;
+      <div id="x-end"><button class="btn2 wide-btn" id="x-finish">Terminer l'épreuve</button></div></div>`;
     examEnter = Date.now();
     $('r-opts').onclick = ev => {
       const b = ev.target.closest('.opt'); if (!b) return;
+      buzz(true);
       e.ans[e.cur] = +b.dataset.i; save();
       el.querySelectorAll('.opt').forEach(o => { o.classList.toggle('sel', o === b); o.setAttribute('aria-pressed', o === b); });
       // on passe à la question suivante sans réponse, comme on le ferait sur papier
@@ -611,11 +634,11 @@
     const it = s.items[s.i];
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map(k => k === 'del'
       ? '<button class="k-del" data-k="del" aria-label="Effacer">⌫</button>' : `<button data-k="${k}">${k}</button>`).join('') + '<button class="k-ok wide" data-k="ok">OK</button>';
-    el.innerHTML = `<div class="run-top"><button class="icon-btn" id="r-quit" aria-label="Arrêter le sprint">${ICON.x}</button>
+    el.innerHTML = `<div class="runq"><div class="run-top"><button class="icon-btn" id="r-quit" aria-label="Arrêter le sprint">${ICON.x}</button>
       <div class="run-title">Sprint automatismes<small>${plural(s.ok, 'juste')}${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</small></div><span class="clock" id="r-clock"></span></div>
       <div class="pbar timer" id="r-timer"><div></div></div>
       <div class="card" id="sp-card"><div class="wq">${it.text}</div><div class="ans" id="r-ans"></div></div>
-      <div class="pad pad-num" id="r-pad">${keys}</div>`;
+      <div class="pad pad-num" id="r-pad">${keys}</div></div>`;
     sprintBuf = ''; sprintLock = false; t0 = performance.now();
     $('r-pad').onclick = ev => { const b = ev.target.closest('[data-k]'); if (b) sprintKey(b.dataset.k); };
     const tick = () => {
@@ -640,6 +663,7 @@
   function sprintSubmit(s, it) {
     sprintLock = true;
     const ms = performance.now() - t0, v = sprintBuf.replace(/,$/, ''), ok = v === it.a;
+    buzz(ok);
     recordAuto(it.cat, ok, ms);
     s.n++; if (ok) s.ok++; else s.miss.push([it.text, it.a, v]);
     save();
@@ -677,7 +701,6 @@
     if (!boxes.length) return ['new', 'À découvrir'];
     return boxes.length === total && Math.min(...boxes) >= 4 ? ['good', 'Maîtrisée'] : ['mid', 'En cours'];
   }
-  let chapTab = 'chap';
   function renderTips(el) {
     const counts = { good: 0 }; G.TIPS.forEach(t => { const [k] = tipStatus(t); counts[k] = (counts[k] || 0) + 1; });
     el.innerHTML += `<p class="sub small">${counts.good} astuce${counts.good > 1 ? 's' : ''} maîtrisée${counts.good > 1 ? 's' : ''} sur ${G.TIPS.length}. Une astuce est maîtrisée quand tu réussis vite et régulièrement les questions qui l'utilisent.</p>`
@@ -689,12 +712,17 @@
         }).join('');
       }).join('');
   }
+  function modesHtml() {
+    const ex = S.exam && !S.exam.done ? S.exam : null, exLeft = ex ? examLeft(ex) : 0, bestExam = S.exams.length ? Math.max(...S.exams.map(x => x.score)) : null;
+    return `<div class="modes">
+      <button class="mode primary" id="m-exam"><b>${ex ? (exLeft > 0 ? 'Reprendre l\'épreuve blanche' : 'Épreuve terminée : voir le résultat') : 'Épreuve blanche'}</b><span>${ex && exLeft > 0 ? `${mmss(exLeft)} restantes` : `15 questions · 20 min · comme le jour J${bestExam !== null ? ` · record ${bestExam}/60` : ''}`}</span></button>
+      <button class="mode" id="m-sprint"><b>Sprint automatismes</b><span>3 min chrono${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button>
+      <button class="mode" id="m-mental"><b>Calcul mental</b><span>Carrés et tables</span></button></div>`;
+  }
   function renderChap() {
     const el = $('scr-chap');
-    el.innerHTML = `<div><h2 class="t">Chapitres</h2></div>
-      <div class="seg" role="tablist"><button role="tab" data-tab="chap" aria-selected="${chapTab === 'chap'}">Chapitres</button><button role="tab" data-tab="tips" aria-selected="${chapTab === 'tips'}">Astuces</button></div>`;
-    if (chapTab === 'tips') renderTips(el);
-    else el.innerHTML += `<p class="sub small">Dans l'ordre d'arrivée dans l'app, puis par poids au TAGE MAGE.</p>` + G.CHAPTERS.map(c => {
+    el.innerHTML = `<div><h2 class="t">S'entraîner</h2></div>${modesHtml()}
+      <p class="eyebrow tip-group">Chapitres</p>` + G.CHAPTERS.map(c => {
       const m = chapMastery(c.id), n = chapCount(c.id), dots = '●'.repeat(c.freq) + '○'.repeat(5 - c.freq);
       const ts = G.typesOf(c.id), mastered = ts.filter(t => (S.sr[t] || {}).box >= 4).length;
       const status = !c.ready ? (c.step === 'mars' ? 'Pour le passage de mars' : `Arrive à l'étape ${c.step}`)
@@ -706,10 +734,18 @@
           <div class="acts"><button class="btn2" data-fiche="${c.id}">Fiche</button><button class="btn1" data-prac="${c.id}">S'entraîner</button></div>` : ''}
       </div>`;
     }).join('');
+    $('m-exam').onclick = startExam;
+    $('m-sprint').onclick = startSprint;
+    $('m-mental').onclick = () => go('mental');
     el.onclick = e => {
-      const f = e.target.closest('[data-fiche]'), p = e.target.closest('[data-prac]'), tb = e.target.closest('[data-tab]');
-      if (tb) { chapTab = tb.dataset.tab; renderChap(); } else if (f) openFiche(f.dataset.fiche); else if (p) startPractice(p.dataset.prac);
+      const f = e.target.closest('[data-fiche]'), p = e.target.closest('[data-prac]');
+      if (f) openFiche(f.dataset.fiche); else if (p) startPractice(p.dataset.prac);
     };
+  }
+  function renderTipsScreen() {
+    const el = $('scr-tips');
+    el.innerHTML = '<div><h2 class="t">Astuces</h2></div>';
+    renderTips(el);
   }
   function openFiche(id) {
     const c = chapOf(id);
@@ -807,7 +843,7 @@
       <p class="sub small center">${plural(Object.keys(S.sr).length, 'notion')} suivie${Object.keys(S.sr).length > 1 ? 's' : ''}, ${dueNotions().length} à réviser aujourd'hui.</p>
       <div class="reset" id="p-reset"><button class="ghost-btn" id="p-reset-ask">Réinitialiser ma progression TAGE MAGE</button></div>`;
     $('scr-prog').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
-    const tl = $('p-tips'); if (tl) tl.onclick = () => { chapTab = 'tips'; go('chap'); };
+    const tl = $('p-tips'); if (tl) tl.onclick = () => go('tips');
     $('p-reset-ask').onclick = () => {
       $('p-reset').innerHTML = '<span>Effacer la note, les statistiques, les révisions et la série ? Le calcul mental n\'est pas touché.</span><button class="ghost-btn danger" id="p-yes">Effacer</button><button class="ghost-btn" id="p-no">Annuler</button>';
       $('p-yes').onclick = () => { try { localStorage.removeItem(KEY); } catch {} location.reload(); };

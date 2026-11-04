@@ -32,6 +32,7 @@
   const dur = m => { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? `${h} h${r ? ' ' + pad(r) : ''}` : `${r} min`; };
   const hm = m => { m = Math.round(m); return `${Math.floor(m / 60)} h ${pad(m % 60)}`; };
   const jours = v => nf(v, 1) + ' jours';
+  const plural_ = (n, w) => `${nf(n)} ${w}${n > 1 ? 's' : ''}`;
   const ans_ = v => nf(v, 1) + ' ans';
 
   // Fraction affichée en hauteur ; réduite par défaut
@@ -596,6 +597,353 @@
     n, [[Math.round(H / 2), 'formule', 'Pas de division par 2 : chaque poignée relie deux équipes différentes.'], [2 * n, 'enonce', 'C\'est le nombre total de joueurs.']], { min: 1, dp: 0 });
   });
 
+  // ===== Géométrie =====
+  const cm = v => nf(v, 1) + ' cm', cm2 = v => nf(v, 1) + ' cm²', deg = v => nf(v, 1) + '°';
+  const piF = unit => v => `${v === 1 ? '' : nf(v)}π ${unit}`;
+
+  def('geo.rect', 'geo', 1, 'Rectangle : périmètre et aire', 'rectpa', d => {
+    if (d === 3) {
+      const c = int(3, 12), w = int(1, c - 1), P = 2 * (c + w), A = c * c;
+      return numQ({ text: `Un carré a une aire de ${A} cm². Un rectangle a pour longueur le côté de ce carré et un périmètre de ${P} cm. Quelle est l'aire du rectangle ?`,
+        exp: E({ r: `<p>Côté du carré : √${A} = ${c} cm. Largeur du rectangle = ${P} ÷ 2 − ${c} = ${w} cm. Aire = ${c} × ${w} = ${c * w} cm².</p>`, p: '<p>Longueur + largeur = le <b>demi</b>-périmètre.</p>' }) },
+      c * w, [[A, 'enonce', 'C\'est l\'aire du carré.'], [c * (P - c), 'formule', 'Longueur + largeur = demi-périmètre, pas le périmètre entier.'], [c * (P - 2 * c), 'calc', 'Tu as oublié de diviser par 2 pour trouver la largeur.']], { min: 1, fmt: cm2 });
+    }
+    const L = int(4, 15), w = int(2, L - 1), P = 2 * (L + w);
+    if (Math.random() < 0.5) {
+      return numQ({ text: `Un rectangle a un périmètre de ${P} cm et une longueur de ${L} cm. Quelle est son aire ?`,
+        exp: E({ r: `<p>Demi-périmètre : ${P / 2} = ${L} + largeur, donc largeur = ${w}. Aire = ${L} × ${w} = ${L * w} cm².</p>`, p: '<p>Le périmètre compte chaque côté deux fois : travaille avec le demi-périmètre.</p>' }) },
+      L * w, [[L * (P - L), 'formule', 'Longueur + largeur = demi-périmètre, pas le périmètre entier.'], [L * (P - 2 * L), 'calc', 'Tu as oublié de diviser par 2 pour trouver la largeur.'], [P * L / 4, 'methode', 'Formule inventée : passe par la largeur.']], { min: 1, fmt: cm2 });
+    }
+    return numQ({ text: `Un rectangle a une aire de ${L * w} cm² et une longueur de ${L} cm. Quel est son périmètre ?`,
+      exp: E({ r: `<p>Largeur = ${L * w} ÷ ${L} = ${w} cm. Périmètre = 2 × (${L} + ${w}) = ${P} cm.</p>`, p: '<p>L + l n\'est que le demi-périmètre : multiplie par 2.</p>' }) },
+    P, [[L + w, 'formule', 'C\'est le demi-périmètre : multiplie par 2.'], [L * w, 'enonce', 'C\'est l\'aire.'], [4 * L, 'methode', 'Formule du carré : ici les côtés ne sont pas égaux.']], { min: 1, fmt: cm });
+  });
+
+  def('geo.angle', 'geo', 1, 'Angles d\'un triangle', 'angles', d => {
+    const v = d === 1 ? 0 : d === 2 ? int(0, 1) : int(1, 2);
+    if (v === 0) {
+      let a, b; do { a = int(20, 110); b = int(15, 120); } while (a + b > 165);
+      const c = 180 - a - b;
+      return numQ({ text: `Dans un triangle, deux angles mesurent ${a}° et ${b}°. Combien mesure le troisième ?`,
+        exp: E({ r: `<p>180 − ${a} − ${b} = ${c}°.</p>`, p: '<p>La somme des angles d\'un triangle vaut 180°, pas 360°.</p>' }) },
+      c, [[360 - a - b, 'formule', 'La somme des angles d\'un triangle vaut 180°, pas 360°.'], [180 - a, 'inatt', 'Tu as oublié de retirer le deuxième angle.'], [180 - b, 'inatt', 'Tu as oublié de retirer le premier angle.']], { step: 5, min: 1, fmt: deg });
+    }
+    if (v === 1) {
+      const s = int(10, 70) * 2, base = (180 - s) / 2;
+      return numQ({ text: `Un triangle isocèle a un angle au sommet de ${s}°. Combien mesure chacun des deux autres angles ?`,
+        exp: E({ r: `<p>Les deux angles à la base sont égaux : (180 − ${s}) ÷ 2 = ${nf(base)}°.</p>`, p: '<p>N\'oublie pas de partager entre les deux angles égaux.</p>' }) },
+      base, [[180 - s, 'calc', 'Il faut partager entre les deux angles égaux : divise par 2.'], [s, 'enonce', 'Ce sont les angles à la base qui sont égaux, pas l\'angle au sommet.'], [(360 - s) / 2, 'formule', 'La somme vaut 180°, pas 360°.']], { step: 5, min: 1, fmt: deg });
+    }
+    const [p, q, r] = pick([[1, 2, 3], [2, 3, 4], [3, 4, 5], [1, 3, 5], [2, 3, 5], [1, 4, 7], [1, 2, 6], [4, 5, 6]]), S = p + q + r, part = 180 / S;
+    return numQ({ text: `Les angles d'un triangle sont proportionnels à ${p}, ${q} et ${r}. Combien mesure le plus grand ?`,
+      exp: E({ r: `<p>${S} parts pour 180° : une part vaut ${nf(part)}°. Le plus grand : ${r} × ${nf(part)} = ${nf(r * part)}°.${r * part === 90 ? ' Le triangle est rectangle.' : ''}</p>`, p: '<p>Calcule d\'abord la valeur d\'une part.</p>' }) },
+    r * part, [[part, 'methode', 'C\'est la valeur d\'une part, pas le plus grand angle.'], [360 * r / S, 'formule', 'La somme vaut 180°, pas 360°.'], [q * part, 'enonce', 'C\'est l\'angle moyen.']], { step: 5, min: 1, fmt: deg });
+  });
+
+  def('geo.poly', 'geo', 2, 'Angles d\'un polygone', 'angles', () => {
+    const n = pick([5, 6, 8, 9, 10, 12]), name = { 5: 'pentagone', 6: 'hexagone', 8: 'octogone', 9: 'nonagone', 10: 'décagone', 12: 'dodécagone' }[n], S = 180 * (n - 2);
+    if (Math.random() < 0.5) {
+      return numQ({ text: `Quelle est la somme des angles d'un ${name} (${n} côtés) ?`,
+        exp: E({ r: `<p>180 × (n − 2) = 180 × ${n - 2} = ${S}°.</p>`, p: '<p>Un polygone à n côtés se découpe en n − 2 triangles, pas n.</p>' }) },
+      S, [[180 * n, 'formule', 'La somme vaut 180 × (n − 2), pas 180 × n.'], [180 * (n - 1), 'calc', 'n − 2 triangles, pas n − 1.'], [360, 'methode', '360° est la somme des angles extérieurs.']], { step: 180, min: 1, fmt: deg });
+    }
+    return numQ({ text: `Combien mesure chaque angle d'un ${name} régulier (${n} côtés égaux) ?`,
+      exp: E({ r: `<p>Somme : 180 × ${n - 2} = ${S}°, partagée en ${n} angles égaux : ${nf(S / n)}°.</p>`, p: `<p>360 ÷ ${n} = ${nf(360 / n)}° est l'angle extérieur, pas l'angle intérieur.</p>` }) },
+    S / n, [[360 / n, 'methode', 'C\'est l\'angle extérieur (ou au centre), pas l\'angle intérieur.'], [180 * n / (n - 2), 'calc', 'Fraction à l\'envers.'], [180 - 180 / n, 'calc', 'Formule approximative : passe par la somme des angles.']], { step: 6, min: 1, fmt: deg });
+  });
+
+  const TRIPLETS = [[3, 4, 5], [5, 12, 13], [8, 15, 17], [7, 24, 25]];
+  def('geo.pyth', 'geo', 2, 'Théorème de Pythagore', 'pythtrip', d => {
+    const base = d === 1 ? [3, 4, 5] : pick(TRIPLETS), k = base[2] === 25 ? 1 : int(1, d === 1 ? 3 : 4), [a, b, c] = base.map(x => x * k);
+    const tr = `${base.join('-')}${k > 1 ? ` × ${k}` : ''}`;
+    if (d === 1 || Math.random() < 0.5) {
+      return numQ({ text: `Les deux côtés de l'angle droit d'un triangle rectangle mesurent ${a} cm et ${b} cm. Combien mesure l'hypoténuse ?`,
+        exp: E({ r: `<p>Reconnais le triplet ${tr} : l'hypoténuse mesure ${c} cm.</p>`, p: '<p>On additionne les carrés des côtés, pas les côtés.</p>', c: `<p>${a}² + ${b}² = ${a * a} + ${b * b} = ${c * c} = ${c}².</p>` }) },
+      c, [[a + b, 'formule', 'On n\'additionne pas les côtés, mais leurs carrés.'], [b - a, 'formule', 'L\'hypoténuse est le plus grand côté.'], [(a + b) / 2, 'methode', 'La moyenne des côtés n\'a pas de sens ici.']], { min: 1, dp: 1, fmt: cm });
+    }
+    return numQ({ text: `L'hypoténuse d'un triangle rectangle mesure ${c} cm et un des côtés de l'angle droit mesure ${b} cm. Combien mesure le troisième côté ?`,
+      exp: E({ r: `<p>Triplet ${tr} : il manque ${a} cm.</p>`, p: '<p>Le côté cherché n\'est pas l\'hypoténuse : on soustrait les carrés (c² − b²).</p>', c: `<p>${c}² − ${b}² = ${c * c} − ${b * b} = ${a * a} = ${a}².</p>` }) },
+    a, [[Math.round(Math.sqrt(c * c + b * b) * 10) / 10, 'formule', 'Le côté manquant n\'est pas l\'hypoténuse : c² − b², pas c² + b².'], [c - b, 'formule', 'On soustrait les carrés, pas les longueurs.'], [b, 'inatt', 'C\'est le côté donné.']], { min: 1, dp: 1, fmt: cm });
+  });
+
+  def('geo.diag', 'geo', 3, 'Diagonale d\'un rectangle', 'pythtrip', () => {
+    const base = pick(TRIPLETS), k = base[2] === 25 ? 1 : int(1, 3), [a, b, c] = base.map(x => x * k), [p, q] = red(a, b);
+    return numQ({ text: `Une pièce rectangulaire a une aire de ${a * b} m². Sa largeur vaut les ${fr(p, q)} de sa longueur. Combien mesure sa diagonale ?`,
+      exp: E({ r: `<p>${fr(p, q)} × L² = ${a * b}, donc L² = ${b * b}, L = ${b} m et largeur ${a} m. Diagonale : triplet ${base.join('-')}${k > 1 ? ` × ${k}` : ''} → ${c} m.</p>`, p: '<p>La diagonale se calcule avec Pythagore sur la longueur et la largeur.</p>' }) },
+    c, [[a + b, 'formule', 'On n\'additionne pas les côtés : Pythagore additionne leurs carrés.'], [b, 'enonce', 'C\'est la longueur.'], [Math.round(Math.sqrt(a * b) * 10) / 10, 'methode', '√aire est le côté d\'un carré de même aire, pas la diagonale.']], { min: 1, dp: 1, fmt: v => nf(v, 1) + ' m' });
+  });
+
+  def('geo.circle', 'geo', 2, 'Cercle et disque', 'circle', d => {
+    const r = int(2, 12), v = d === 1 ? int(0, 1) : d === 2 ? int(0, 2) : 2;
+    if (v === 0) {
+      return numQ({ text: `Un cercle a un périmètre de ${2 * r}π cm. Quelle est l'aire du disque ?`,
+        exp: E({ r: `<p>2πr = ${2 * r}π, donc r = ${r}. Aire = π × ${r}² = ${r * r}π cm².</p>`, p: '<p>Ne prends pas le diamètre pour le rayon.</p>' }) },
+      r * r, [[4 * r * r, 'formule', 'Tu as pris le diamètre pour le rayon.'], [2 * r, 'enonce', 'C\'est le périmètre.'], [2 * r * r, 'formule', 'Aire = πr², pas 2πr².']], { min: 1, dp: 0, fmt: piF('cm²') });
+    }
+    if (v === 1) {
+      return numQ({ text: `Un disque a une aire de ${r * r}π cm². Quel est le périmètre du cercle ?`,
+        exp: E({ r: `<p>πr² = ${r * r}π, donc r = ${r}. Périmètre = 2π × ${r} = ${2 * r}π cm.</p>`, p: '<p>Périmètre = 2πr : n\'oublie pas le 2.</p>' }) },
+      2 * r, [[r, 'formule', 'Périmètre = 2πr : n\'oublie pas le 2.'], [r * r, 'enonce', 'C\'est l\'aire.'], [4 * r, 'calc', 'Tu as pris le diamètre pour le rayon.']], { min: 1, dp: 0, fmt: piF('cm') });
+    }
+    return numQ({ text: `Un carré est inscrit dans un cercle de rayon ${r} cm. Quelle est l'aire du carré ?`,
+      exp: E({ r: `<p>La diagonale du carré est un diamètre : ${2 * r} cm. Aire d'un carré = diagonale² ÷ 2 = ${4 * r * r} ÷ 2 = ${2 * r * r} cm².</p>`,
+        p: `<p>4r² = ${4 * r * r} serait le carré dans lequel le cercle est inscrit (côté = diamètre).</p>`, c: `<p>Côté = ${r}√2, aire = (${r}√2)² = ${2 * r * r}.</p>` }) },
+    2 * r * r, [[4 * r * r, 'methode', '4r² est l\'aire du carré dans lequel le cercle est inscrit (côté = diamètre).'], [r * r, 'formule', 'Le côté du carré n\'est pas le rayon.'], [Math.round(Math.PI * r * r), 'enonce', 'C\'est environ l\'aire du disque.']], { min: 1, dp: 0, fmt: cm2 });
+  });
+
+  def('geo.scale', 'geo', 2, 'Agrandissement et réduction', 'scale', d => {
+    const k = pick([2, 3, 4, 5]), v = d === 1 ? 0 : d === 2 ? int(0, 1) : 2;
+    if (v === 0) {
+      return numQ({ text: `On multiplie par ${k} toutes les longueurs d'une figure. Par combien est multipliée son aire ?`,
+        exp: E({ r: `<p>Les aires sont multipliées par k² = ${k * k}.</p>`, p: '<p>k pour les longueurs, k² pour les aires, k³ pour les volumes.</p>' }) },
+      k * k, [[k, 'formule', 'L\'aire est multipliée par k², pas par k.'], [k ** 3, 'formule', 'k³, c\'est pour les volumes.'], [2 * k, 'calc', 'Tu as multiplié par 2 au lieu d\'élever au carré.']], { min: 1, dp: 0, fmt: v => '× ' + nf(v) });
+    }
+    if (v === 1) {
+      return numQ({ text: `On multiplie par ${k} les arêtes d'un cube. Par combien est multiplié son volume ?`,
+        exp: E({ r: `<p>Les volumes sont multipliés par k³ = ${k ** 3}.</p>`, p: '<p>k² ne concerne que les aires.</p>' }) },
+      k ** 3, [[k, 'formule', 'Le volume est multiplié par k³, pas par k.'], [k * k, 'formule', 'k², c\'est pour les aires.'], [3 * k, 'calc', 'Tu as multiplié par 3 au lieu d\'élever au cube.']], { min: 1, dp: 0, fmt: v => '× ' + nf(v) });
+    }
+    const n = int(4, 30);
+    return numQ({ text: `Une boîte cubique contient exactement ${n} petits cubes identiques. Combien de ces cubes peut-on ranger dans une boîte cubique dont les arêtes sont ${k} fois plus grandes ?`,
+      exp: E({ r: `<p>Arêtes × ${k} → volume × ${k}³ = ${k ** 3}. ${n} × ${k ** 3} = ${n * k ** 3} cubes.</p>`, p: '<p>C\'est le volume qui compte : × k³.</p>' }) },
+    n * k ** 3, [[n * k, 'formule', 'Le volume est multiplié par k³, pas par k.'], [n * k * k, 'formule', 'k², c\'est pour les aires.'], [n * 3 * k, 'calc', 'Tu as multiplié par 3k au lieu de k³.']], { step: n, min: 1, dp: 0 });
+  });
+
+  def('geo.area', 'geo', 2, 'Aires : triangle, trapèze, losange', 'area', d => {
+    const v = d === 1 ? 0 : int(0, 2);
+    if (v === 0) {
+      const b = int(3, 20), h = int(2, 15) * 2;
+      return numQ({ text: `Un triangle a une base de ${b} cm et une hauteur de ${h} cm. Quelle est son aire ?`,
+        exp: E({ r: `<p>Base × hauteur ÷ 2 = ${b} × ${h} ÷ 2 = ${b * h / 2} cm².</p>`, p: '<p>N\'oublie pas le ÷ 2 : un triangle est la moitié d\'un rectangle.</p>' }) },
+      b * h / 2, [[b * h, 'formule', 'Aire d\'un triangle = base × hauteur ÷ 2.'], [b + h, 'methode', 'On multiplie, on n\'additionne pas.']], { min: 1, fmt: cm2 });
+    }
+    if (v === 1) {
+      let B, s, h; do { B = int(6, 20); s = int(2, B - 1); h = int(2, 12); } while (((B + s) * h) % 2);
+      return numQ({ text: `Un trapèze a des bases de ${B} cm et ${s} cm, et une hauteur de ${h} cm. Quelle est son aire ?`,
+        exp: E({ r: `<p>(B + b) × h ÷ 2 = (${B} + ${s}) × ${h} ÷ 2 = ${(B + s) * h / 2} cm².</p>`, p: '<p>Moyenne des deux bases × hauteur : n\'oublie pas le ÷ 2.</p>' }) },
+      (B + s) * h / 2, [[(B + s) * h, 'formule', 'Tu as oublié de diviser par 2.'], [B * h, 'methode', 'Formule du rectangle : le trapèze a deux bases différentes.'], [B * s * h / 2, 'formule', 'On additionne les bases, on ne les multiplie pas.']], { min: 1, fmt: cm2 });
+    }
+    const D = int(4, 20), dd = int(2, D - 1) * 2;
+    return numQ({ text: `Un losange a des diagonales de ${D} cm et ${dd} cm. Quelle est son aire ?`,
+      exp: E({ r: `<p>D × d ÷ 2 = ${D} × ${dd} ÷ 2 = ${D * dd / 2} cm².</p>`, p: '<p>Le losange occupe la moitié du rectangle formé par ses diagonales.</p>' }) },
+    D * dd / 2, [[D * dd, 'formule', 'Tu as oublié de diviser par 2.'], [D + dd, 'methode', 'On multiplie les diagonales.']], { min: 1, fmt: cm2 });
+  });
+
+  // ===== Probabilités =====
+  const comb = (n, k) => { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); };
+  const PASCAL = { 2: '1, 2, 1', 3: '1, 3, 3, 1', 4: '1, 4, 6, 4, 1' };
+
+  def('proba.coins', 'proba', 2, 'Pièces et enfants', 'coins', d => {
+    const n = d === 1 ? 2 : pick([3, 4]), k = int(1, n - 1), atl = d === 3 && Math.random() < 0.5, N = 2 ** n;
+    let cnt = 0; for (let j = atl ? k : k; j <= (atl ? n : k); j++) cnt += comb(n, j);
+    const kids = Math.random() < 0.5;
+    const text = kids ? `Une famille a ${n} enfants (fille ou garçon avec la même probabilité). Quelle est la probabilité qu'elle ait ${atl ? 'au moins' : 'exactement'} ${k} fille${k > 1 ? 's' : ''} ?`
+      : `On lance ${n} pièces équilibrées. Quelle est la probabilité d'obtenir ${atl ? 'au moins' : 'exactement'} ${k} fois pile ?`;
+    const other = atl ? comb(n, k) : cnt + comb(n, k + 1);
+    return fracQ({ text,
+      exp: E({ r: `<p>${N} cas équiprobables. Façons d'avoir 0, 1, 2… ${kids ? 'filles' : 'piles'} : ${PASCAL[n]}. ${atl ? `Au moins ${k}` : `Exactement ${k}`} : ${cnt} cas, soit ${fr(cnt, N)}.</p>`,
+        p: '<p>Chaque ordre compte : PPF, PFP et FPP sont trois cas différents.</p>', c: '<p>Arbre : chaque branche vaut 1/2 × 1/2 × …, et on additionne les branches qui conviennent.</p>' }) },
+    [cnt, N], [[[k, n], 'methode', `Ce n'est pas ${k} sur ${n} : il y a ${N} cas possibles.`], [[1, N], 'enonce', 'C\'est la probabilité d\'un seul ordre précis : plusieurs ordres conviennent.'],
+      [[other, N], 'enonce', atl ? 'C\'est « exactement », pas « au moins ».' : 'C\'est « au moins », pas « exactement ».']], i => [[cnt + i, N], [cnt - i, N]]);
+  });
+
+  def('proba.dice', 'proba', 2, 'Deux dés', 'count36', d => {
+    const v = d === 1 ? 0 : d === 2 ? int(0, 1) : int(1, 2);
+    if (v === 0) {
+      let s; do s = int(3, 11); while (s === 7 && Math.random() < 0.5);
+      const cnt = 6 - Math.abs(s - 7), list = []; for (let a = 1; a <= 6; a++) { const b = s - a; if (b >= 1 && b <= 6) list.push(`(${a} ; ${b})`); }
+      return fracQ({ text: `On lance deux dés équilibrés. Quelle est la probabilité que la somme fasse ${s} ?`,
+        exp: E({ r: `<p>36 cas. Somme ${s} : ${list.join(', ')}, soit ${cnt} cas : ${fr(cnt, 36)}.</p>`, p: '<p>Les 11 sommes possibles ne sont pas équiprobables : (1 ; 2) et (2 ; 1) sont deux cas.</p>' }) },
+      [cnt, 36], [[[1, 11], 'methode', 'Les 11 sommes ne sont pas équiprobables : il y a 36 cas.'], [[Math.ceil(cnt / 2), 36], 'methode', 'Tu as compté (1 ; 2) et (2 ; 1) comme un seul cas.'], [[cnt, 12], 'calc', 'Il y a 6 × 6 = 36 cas, pas 12.']], i => [[cnt + i, 36], [cnt - i, 36]]);
+    }
+    if (v === 1) {
+      const diff = Math.random() < 0.5;
+      return fracQ({ text: `On lance deux dés équilibrés. Quelle est la probabilité d'obtenir ${diff ? 'deux chiffres différents' : 'un double'} ?`,
+        exp: E({ r: `<p>6 doubles sur 36 cas : ${fr(6, 36)} = ${fr(1, 6)}.${diff ? ` Deux chiffres différents : 1 − ${fr(1, 6)} = ${fr(5, 6)}.` : ''}</p>`, p: '<p>Il y a 6 doubles, pas un seul.</p>' }) },
+      diff ? [30, 36] : [6, 36], diff ? [[[1, 6], 'enonce', 'C\'est la probabilité d\'un double.'], [[25, 36], 'methode', 'Ce compte correspond à « aucun 6 ».'], [[1, 36], 'calc', 'Raisonnement sur un seul double.']]
+        : [[[1, 36], 'enonce', 'Il y a 6 doubles possibles, pas un seul.'], [[5, 6], 'enonce', 'C\'est la probabilité de deux chiffres différents.'], [[1, 12], 'calc', 'Il y a 36 cas, pas 72.']], i => [[(diff ? 30 : 6) + i, 36], [(diff ? 30 : 6) - i, 36]]);
+    }
+    return fracQ({ text: 'On lance deux dés équilibrés. Quelle est la probabilité d\'obtenir au moins un 6 ?', tip: 'complement',
+      exp: E({ r: `<p>Contraire : aucun 6, soit ${fr(5, 6)} × ${fr(5, 6)} = ${fr(25, 36)}. Donc 1 − ${fr(25, 36)} = ${fr(11, 36)}.</p>`, p: `<p>${fr(1, 6)} + ${fr(1, 6)} = ${fr(1, 3)} compte le double 6 deux fois.</p>` }) },
+    [11, 36], [[[1, 3], 'methode', 'On n\'additionne pas 1/6 + 1/6 : le double 6 serait compté deux fois.'], [[1, 36], 'enonce', 'C\'est la probabilité du double 6.'], [[25, 36], 'enonce', 'C\'est la probabilité de n\'avoir aucun 6.']], i => [[11 + i, 36], [11 - i, 36]]);
+  });
+
+  def('proba.balls', 'proba', 3, 'Tirage avec ou sans remise', 'noreplace', d => {
+    const r = int(2, 6), b = int(2, 6), n = r + b, rep = d === 1;
+    const ans = rep ? [r * r, n * n] : [r * (r - 1), n * (n - 1)];
+    return fracQ({ text: `Une urne contient ${r} boules rouges et ${b} boules bleues. On tire successivement 2 boules ${rep ? 'avec' : 'sans'} remise. Quelle est la probabilité d'obtenir 2 boules rouges ?`,
+      exp: E({ r: rep ? `<p>Avec remise, rien ne change : ${fr(r, n)} × ${fr(r, n)} = ${fr(r * r, n * n)}.</p>` : `<p>${fr(r, n)} × ${fr(r - 1, n - 1)} = ${fr(r * (r - 1), n * (n - 1))} : après le 1er tirage, il reste ${r - 1} rouges sur ${n - 1} boules.</p>`,
+        p: rep ? '<p>Avec remise, les deux tirages sont identiques et indépendants.</p>' : '<p>Sans remise, le numérateur et le dénominateur baissent de 1.</p>' }) },
+    ans, rep ? [[[r * (r - 1), n * (n - 1)], 'methode', 'C\'est le calcul sans remise : ici on remet la boule.'], [[r, n], 'enonce', 'C\'est la probabilité pour une seule boule.'], [[2 * r, n * n], 'formule', 'On multiplie les probabilités, on ne double pas.']]
+      : [[[r * r, n * n], 'methode', 'C\'est le calcul avec remise : sans remise, il reste une boule de moins.'], [[r, n], 'enonce', 'C\'est la probabilité pour une seule boule.'], [[r * (r - 1), n * n], 'calc', `Le dénominateur baisse aussi : il reste ${n - 1} boules.`]], i => [[ans[0] + i, ans[1]], [ans[0], ans[1] + i]]);
+  });
+
+  def('proba.cards', 'proba', 1, 'Jeu de cartes', 'indep', d => {
+    if (d === 3) {
+      return fracQ({ text: 'On tire une carte dans chacun de deux jeux de 52 cartes. Quelle est la probabilité de tirer un cœur dans le premier et une carte rouge dans le second ?',
+        exp: E({ r: `<p>Tirages indépendants : on multiplie. ${fr(1, 4)} × ${fr(1, 2)} = ${fr(1, 8)}.</p>`, p: '<p>« Et » entre deux tirages indépendants : on multiplie, on n\'additionne pas.</p>' }) },
+      [1, 8], [[[3, 4], 'formule', 'On multiplie les probabilités d\'événements indépendants, on ne les additionne pas.'], [[1, 4], 'inatt', 'Tu as oublié le second jeu.'], [[1, 2], 'inatt', 'Tu as oublié le premier jeu.']], i => [[1, 8 + i], [1 + i, 8]]);
+    }
+    const deck = pick([52, 32]);
+    const items = deck === 52 ? [['un cœur', 13], ['un roi', 4], ['une figure (valet, dame ou roi)', 12], ['une carte rouge', 26], ['un as noir', 2], ['un roi ou une dame', 8], ['un cœur ou un roi', 16]]
+      : [['un cœur', 8], ['un roi', 4], ['une figure (valet, dame ou roi)', 12], ['une carte rouge', 16], ['un as noir', 2], ['un roi ou une dame', 8], ['un cœur ou un roi', 11]];
+    const [what, cnt] = pick(items), heartKing = what === 'un cœur ou un roi';
+    return fracQ({ text: `On tire une carte au hasard dans un jeu de ${deck} cartes. Quelle est la probabilité de tirer ${what} ?`,
+      exp: E({ r: `<p>${cnt} cartes favorables sur ${deck} : ${fr(cnt, deck)}.${heartKing ? ` (${deck / 4} cœurs + 4 rois − le roi de cœur compté deux fois.)` : ''}</p>`,
+        p: deck === 32 ? '<p>Un jeu de 32 cartes n\'a que 8 cartes par couleur (du 7 à l\'as).</p>' : '<p>Un jeu de 52 cartes a 13 cartes par couleur et 4 rois.</p>' }) },
+    [cnt, deck], [[[cnt, deck === 52 ? 32 : 52], 'enonce', `Vérifie le nombre de cartes du jeu : ${deck}.`], ...(heartKing ? [[[cnt + 1, deck], 'calc', 'Le roi de cœur est compté deux fois.']] : [])],
+    i => [[cnt + i, deck], [cnt - i, deck]]);
+  });
+
+  def('proba.lotto', 'proba', 2, 'Tirage de numéros', 'countAB', d => {
+    const zero = d >= 2 && Math.random() < 0.6, N = pick([20, 30, 40, 50, 60, 100]), k = pick([3, 4, 5, 6, 7]), start = zero ? 0 : 1, total = N - start + 1;
+    const cnt = Math.floor(N / k) + (zero ? 1 : 0);
+    return fracQ({ text: `On tire une boule au hasard parmi des boules numérotées de ${start} à ${N}. Quelle est la probabilité que son numéro soit un multiple de ${k} ?`,
+      exp: E({ r: `<p>Nombre de boules : ${N} − ${start} + 1 = ${total}. Multiples de ${k} : ${zero ? `0, ` : ''}${k}, ${2 * k}… jusqu'à ${Math.floor(N / k) * k}, soit ${cnt}. Probabilité ${fr(cnt, total)}.</p>`,
+        p: zero ? '<p>De 0 à N il y a N + 1 boules, et 0 est un multiple de tous les nombres.</p>' : `<p>1/${k} n'est qu'une approximation : compte les multiples exacts.</p>` }) },
+    [cnt, total], zero ? [[[cnt, N], 'enonce', `Il y a ${total} boules de 0 à ${N} (B − A + 1).`], [[cnt - 1, total], 'inatt', `0 est un multiple de ${k}.`], [[1, k], 'methode', '1/k n\'est qu\'une approximation : compte les multiples exacts.']]
+      : [[[1, k], 'methode', '1/k n\'est qu\'une approximation : compte les multiples exacts.'], [[cnt, N - 1], 'calc', `De 1 à ${N} il y a ${N} boules.`]], i => [[cnt + i, total], [cnt - i, total]]);
+  });
+
+  // ===== Intérêts =====
+  def('int.simple', 'int', 1, 'Intérêts simples', 'simplecomp', d => {
+    const C = int(2, d === 1 ? 20 : 40) * 100, t = pick([2, 3, 4, 5, 6, 8, 10]), n = int(2, 6), I = C * t * n / 100, tot = Math.random() < 0.5;
+    const comp = C * ((1 + t / 100) ** n - 1);
+    return numQ({ text: `On place ${eur(C)} à ${t} % par an, en intérêts simples, pendant ${n} ans. ${tot ? 'De quelle somme dispose-t-on au total ?' : 'Combien rapportent les intérêts ?'}`,
+      exp: E({ r: `<p>Chaque année rapporte ${t} % du capital de départ, soit ${eur(C * t / 100)}. Sur ${n} ans : ${eur(I)}${tot ? `, donc ${eur(C + I)} au total` : ''}.</p>`, p: '<p>En intérêts simples, les intérêts ne produisent pas d\'intérêts : pas de coefficient à la puissance n.</p>' }) },
+    tot ? C + I : I, [[tot ? C + comp : comp, 'formule', 'C\'est le calcul en intérêts composés.'], [tot ? I : C + I, 'enonce', tot ? 'Ce sont les intérêts seuls : ajoute le capital.' : 'C\'est le total, capital compris.'],
+      [tot ? C + C * t / 100 : C * t / 100, 'enonce', 'C\'est pour une année seulement.']], { step: C * t / 100, min: 1, fmt: eur });
+  });
+
+  def('int.comp', 'int', 2, 'Intérêts composés', 'simplecomp', d => {
+    const n = d === 3 ? 3 : 2, t = n === 3 ? 10 : pick(d === 1 ? [10] : [5, 10, 20]), C = int(1, 20) * 1000, c = 1 + t / 100, total = C * c ** n;
+    return numQ({ text: `On place ${eur(C)} à ${t} % par an, en intérêts composés. De quelle somme dispose-t-on au bout de ${n} ans ?`,
+      exp: E({ r: `<p>Coefficient ${nf(c)} par an : ${nf(C)} × ${nf(c)}${n === 2 ? '²' : '³'} = ${nf(C)} × ${nf(c ** n, 4)} = ${eur(total)}.</p>`, p: `<p>Les intérêts de la 1re année rapportent aussi : on multiplie par ${nf(c)} chaque année, on n'ajoute pas ${n} × ${t} %.</p>` }) },
+    total, [[C * (1 + n * t / 100), 'formule', 'C\'est le calcul en intérêts simples : en composés, les intérêts produisent aussi des intérêts.'], [total - C, 'enonce', 'Ce sont les intérêts seuls.'], [C * c, 'enonce', 'C\'est au bout d\'un an.']], { step: C / 100, min: 1, fmt: eur });
+  });
+
+  def('int.rate', 'int', 3, 'Retrouver le taux ou le capital', 'intrate', () => {
+    const t = pick([2, 3, 4, 5, 10]), K = int(2, 30) * 100, I1 = K * t / 100, I2 = I1 * (1 + t / 100), askRate = Math.random() < 0.5;
+    const text = `Une somme placée à intérêts composés rapporte ${eur(I1)} d'intérêts la première année et ${eur(I2)} la deuxième. ${askRate ? 'Quel est le taux d\'intérêt ?' : 'Quelle somme a été placée ?'}`;
+    const r = `<p>Les intérêts de la 2e année sont ceux de la 1re augmentés du taux : (${nf(I2)} − ${nf(I1)}) ÷ ${nf(I1)} = ${t} %.${askRate ? '' : ` Capital = ${nf(I1)} ÷ ${t} % = ${eur(K)}.`}</p>`;
+    if (askRate) {
+      return numQ({ text, exp: E({ r, p: '<p>Divise l\'écart par les intérêts de la 1re année.</p>' }) },
+        t, [[Math.round((I2 - I1) * 100) / 100, 'methode', 'C\'est l\'écart en euros, pas un taux.'], [Math.round((I2 - I1) / I2 * 1000) / 10, 'formule', 'Divise par les intérêts de la 1re année, pas de la 2e.']], { min: 0.5, dp: 1, fmt: pc });
+    }
+    return numQ({ text, exp: E({ r, p: '<p>Les intérêts de la 1re année portent sur le capital de départ.</p>' }) },
+      K, [[Math.round(I2 / t * 100), 'enonce', 'Les intérêts de la 2e année portent sur le capital déjà augmenté.'], [I1 * t, 'formule', 'Capital = intérêts ÷ taux, pas × taux.']], { step: 100, min: 1, fmt: eur });
+  });
+
+  def('int.split', 'int', 3, 'Placement sur deux taux', 'falsehyp', () => {
+    const [a, b] = pick([[3, 7], [2, 5], [4, 6], [3, 5], [2, 8]]), S = int(5, 30) * 100, x = int(1, S / 100 - 1) * 100, T = x * (1 + b / 100) + (S - x) * (1 + a / 100);
+    const low = S * (1 + a / 100), extra = T - low;
+    return numQ({ text: `On place ${eur(S)} : une partie à ${a} %, le reste à ${b} %. Au bout d'un an, on dispose de ${eur(T)}. Quelle somme a été placée à ${b} % ?`,
+      exp: E({ r: `<p>Si tout était à ${a} % : ${eur(low)}. Il y a ${eur(extra)} de plus, et chaque euro placé à ${b} % rapporte ${b - a} % de plus : ${nf(extra)} ÷ ${nf((b - a) / 100)} = ${eur(x)}.</p>`,
+        p: `<p>Ne confonds pas les deux parts : on demande celle à ${b} %.</p>`, c: `<p>x × ${nf(1 + b / 100)} + (${S} − x) × ${nf(1 + a / 100)} = ${nf(T)}.</p>` }) },
+    x, [[S - x, 'enonce', `C'est la somme placée à ${a} %.`], [Math.round((T - S) * 100 / b), 'methode', `Tous les intérêts ne viennent pas du placement à ${b} %.`], [S / 2, 'methode', 'Rien n\'indique un partage égal.']], { step: 100, min: 1, fmt: eur });
+  });
+
+  def('int.double', 'int', 2, 'Doublement d\'un capital', 'rule72', () => {
+    const t = pick([4, 5, 6, 8, 9, 10, 12]), c = 1 + t / 100; let n = 1; while (c ** n < 2) n++;
+    return numQ({ text: `Un capital est placé à ${t} % par an en intérêts composés. Au bout de combien d'années aura-t-il au moins doublé ?`,
+      exp: E({ r: `<p>Règle de 72 : 72 ÷ ${t} ≈ ${nf(72 / t, 1)} ans. Vérifie : ${nf(c)}<sup>${n}</sup> ≈ ${nf(c ** n, 3)} ≥ 2, mais ${nf(c)}<sup>${n - 1}</sup> ≈ ${nf(c ** (n - 1), 3)} < 2.</p>`,
+        p: `<p>100 ÷ ${t} = ${nf(100 / t, 1)} ans est le doublement en intérêts simples : en composés, c'est plus rapide.</p>` }) },
+    n, [[Math.ceil(100 / t), 'formule', 'C\'est le doublement en intérêts simples : en composés, c\'est plus rapide.'], [n - 1, 'calc', `Juste avant : ${nf(c ** (n - 1), 3)} < 2.`]], { min: 1, dp: 0, fmt: v => plural_(v, 'an') });
+  });
+
+  // ===== Puissances et racines =====
+  const sup = (b, e) => `${b}<sup>${typeof e === 'number' ? nf(e) : e}</sup>`;
+  def('pui.rules', 'pui', 1, 'Règles de calcul', 'powrules', d => {
+    const a = pick([2, 3, 5, 7]), v = d === 1 ? 0 : d === 2 ? int(0, 1) : int(1, 2);
+    if (v === 0) {
+      let m, n, p; do { m = int(2, 9); n = int(2, 9); p = int(1, 8); } while (m + n - p < 1);
+      return numQ({ text: `Simplifie : ${sup(a, m)} × ${sup(a, n)} ÷ ${sup(a, p)}`,
+        exp: E({ r: `<p>Multiplier : on additionne les exposants ; diviser : on les soustrait. ${m} + ${n} − ${p} = ${m + n - p}.</p>`, p: '<p>On ne multiplie pas les exposants quand on multiplie des puissances.</p>' }) },
+      m + n - p, [[m * n - p, 'formule', 'On additionne les exposants quand on multiplie, on ne les multiplie pas.'], [m + n + p, 'formule', 'Diviser, c\'est soustraire les exposants.']], { min: 0, dp: 0, fmt: v => sup(a, v) });
+    }
+    if (v === 1) {
+      const m = int(2, 5), n = int(2, 4), p = int(1, 6);
+      return numQ({ text: `Simplifie : (${sup(a, m)})<sup>${n}</sup> × ${sup(a, p)}`,
+        exp: E({ r: `<p>Puissance de puissance : on multiplie (${m} × ${n} = ${m * n}), puis on ajoute ${p} : ${sup(a, m * n + p)}.</p>`, p: '<p>(aᵐ)ⁿ = aᵐ×ⁿ, pas aᵐ⁺ⁿ.</p>' }) },
+      m * n + p, [[m + n + p, 'formule', 'Puissance de puissance : on multiplie les exposants.'], [m * n * p, 'formule', 'On multiplie deux puissances de même base : on additionne les exposants.']], { min: 0, dp: 0, fmt: v => sup(a, v) });
+    }
+    const [x, y] = pick([[2, 5], [4, 25], [20, 5], [2, 50], [8, 125]]), e = int(3, 9), z = x * y;
+    return numQ({ text: `Simplifie : ${sup(x, e)} × ${sup(y, e)}`,
+      exp: E({ r: `<p>Même exposant : aᵐ × bᵐ = (a × b)ᵐ = ${sup(z, e)}.</p>`, p: '<p>L\'exposant ne change pas : on multiplie les bases.</p>' }) },
+    e, [[2 * e, 'formule', 'Même exposant : on multiplie les bases, l\'exposant reste le même.'], [e * e, 'formule', 'On ne multiplie pas les exposants.']], { min: 1, dp: 0, fmt: v => sup(z, v) });
+  });
+
+  def('pui.cmp', 'pui', 2, 'Comparer des puissances', 'samepow', () => {
+    const g = pick([5, 10]), cands = [];
+    for (let b = 2; b <= 9; b++) for (let k = 1; k <= 4; k++) if (b ** k <= 60 && !(k > 1 && [4, 8, 9].includes(b))) cands.push([b, k, b ** k]);
+    const fs = [], seen = new Set();
+    shuffle(cands).forEach(c => { if (fs.length < 5 && !seen.has(c[2])) { seen.add(c[2]); fs.push(c); } });
+    const vals = fs.map(f => f[2]), ans = vals.indexOf(Math.max(...vals)), maxE = Math.max(...fs.map(f => f[1])), maxB = Math.max(...fs.map(f => f[0]));
+    const sorted = fs.slice().sort((x, y) => y[2] - x[2]);
+    return { text: 'Quel est le plus grand de ces nombres ?', tip: 'samepow', ans,
+      choices: fs.map((f, i) => ({ k: `${f[0]}^${f[1] * g}`, h: sup(f[0], f[1] * g),
+        ...(i !== ans && f[1] === maxE ? { why: ['methode', 'Le plus grand exposant ne suffit pas : ramène tout au même exposant.'] }
+          : i !== ans && f[0] === maxB ? { why: ['methode', 'La plus grande base ne suffit pas : ramène tout au même exposant.'] } : {}) })),
+      exp: E({ r: `<p>Ramène tout à l'exposant ${g} : ${sorted.map(f => `${sup(f[0], f[1] * g)} = ${sup(f[2], g)}`).join(' ; ')}. Le plus grand a la plus grande base.</p>`,
+        p: '<p>Ni la plus grande base ni le plus grand exposant ne suffisent seuls.</p>' }) };
+  });
+
+  def('pui.sqrt', 'pui', 1, 'Simplifier une racine', 'sqrtsimp', d => {
+    const b = pick([2, 3, 5, 6, 7]);
+    const rad = (a, r) => (r === 1 ? String(a) : `${a === 1 ? '' : a}√${r}`);
+    const build = (meta, ans, ds, fill) => {
+      const key = x => `${x[0]}r${x[1]}`, val = x => x[0] * Math.sqrt(x[1]);
+      const vals = [{ x: ans, why: null }], seen = new Set([key(ans)]);
+      const add = o => { if (vals.length >= 5 || o.x[0] < 1 || seen.has(key(o.x))) return; seen.add(key(o.x)); vals.push(o); };
+      ds.forEach(([x, c, m]) => add({ x, why: [c, m] }));
+      for (let i = 1; vals.length < 5 && i < 20; i++) fill(i).forEach(x => add({ x, why: null }));
+      vals.sort((p, q) => val(p.x) - val(q.x));
+      return { ...meta, choices: vals.map(o => ({ k: key(o.x), h: rad(o.x[0], o.x[1]), ...(o.why ? { why: o.why } : {}) })), ans: vals.findIndex(o => key(o.x) === key(ans)) };
+    };
+    if (d === 3) {
+      const p = int(2, 5), q = int(2, 5);
+      return build({ text: `Combien font √${p * p * b} + √${q * q * b} ?`,
+        exp: E({ r: `<p>√${p * p * b} = ${rad(p, b)} et √${q * q * b} = ${rad(q, b)}. Même racine : ${rad(p + q, b)}.</p>`, p: `<p>√a + √b ≠ √(a + b) : simplifie chaque racine d'abord.</p>` }) },
+      [p + q, b], [[[1, (p * p + q * q) * b], 'formule', '√a + √b n\'est pas √(a + b) : simplifie chaque racine.'], [[p * q, b], 'calc', 'On additionne les coefficients, on ne les multiplie pas.']], i => [[p + q + i, b], [p + q - i, b]]);
+    }
+    const a = int(2, d === 1 ? 5 : 9), n = a * a * b;
+    return build({ text: `Simplifie √${n}.`,
+      exp: E({ r: `<p>Plus grand carré parfait qui divise ${n} : ${a * a}. √${n} = √(${a * a} × ${b}) = ${rad(a, b)}.</p>`, p: '<p>On sort la racine du carré (√' + a * a + ' = ' + a + '), pas le carré lui-même.</p>' }) },
+    [a, b], [[[a * a, b], 'formule', `On sort la racine du carré (√${a * a} = ${a}), pas le carré lui-même.`], ...(a <= 7 && ![4].includes(a) ? [[[b, a], 'calc', 'Tu as inversé le nombre sorti et celui qui reste sous la racine.']] : [])],
+    i => [[a + i, b], [a - i, b]]);
+  });
+
+  def('pui.eq', 'pui', 2, 'Équations avec exposants', 'powrules', d => {
+    if (d === 3) {
+      const a = pick([2, 3]), m = pick([7, 11, 13]), e = int(3, a === 2 ? 9 : 6), N = a ** e;
+      return numQ({ text: `On sait que ${sup(a, 'x')} = ${m} et que ${sup(m, 'y')} = ${nf(N)}. Combien vaut x × y ?`,
+        exp: E({ r: `<p>${sup(m, 'y')} = (${sup(a, 'x')})<sup>y</sup> = ${sup(a, 'xy')}, et ${nf(N)} = ${sup(a, e)}. Donc x × y = ${e}.</p>`, p: `<p>Remplace ${m} par ${sup(a, 'x')} : inutile de calculer x.</p>` }) },
+      e, [[e + 1, 'calc', `Recompte : ${nf(N)} = ${sup(a, e)}.`], [Math.round(N / m), 'methode', 'On ne divise pas : remplace ' + m + ' par sa puissance de ' + a + '.']], { min: 1, dp: 0 });
+    }
+    const a = pick([2, 3, 5]), y = int(2, a === 2 ? 9 : a === 3 ? 5 : 4), k = d === 1 ? 0 : pick([-2, -1, 1, 2]), x = y - k;
+    if (x < 1) return T['pui.eq'].f(1);
+    const ex = k === 0 ? 'x' : `x ${k > 0 ? '+' : '−'} ${Math.abs(k)}`;
+    return numQ({ text: `Si ${a}<sup>${ex}</sup> = ${nf(a ** y)}, combien vaut x ?`,
+      exp: E({ r: `<p>${nf(a ** y)} = ${sup(a, y)}, donc ${ex} = ${y}${k ? ` et x = ${x}` : ''}.</p>`, p: k ? `<p>N'oublie pas de ${k > 0 ? 'retirer' : 'ajouter'} ${Math.abs(k)} à l'exposant.</p>` : '<p>Cherche la puissance, ne divise pas par la base.</p>' }) },
+    x, [...(k ? [[y, 'inatt', `C'est la valeur de ${ex} : il faut encore ${k > 0 ? 'retirer' : 'ajouter'} ${Math.abs(k)}.`]] : []), [Math.round(a ** y / a), 'formule', 'On ne divise pas par la base : cherche la puissance.'], [x + 2 * k, 'calc', 'Signe inversé.']], { min: 0, dp: 0 });
+  });
+
+  def('pui.sci', 'pui', 2, 'Puissances de 10 et décimaux', 'pow10', () => {
+    const a = int(2, 9), b = int(2, 9), p = pick([-3, -2, -1]), q = pick([2, 3, 4]);
+    const x = a * 10 ** p, y = b * 10 ** q, ans = Math.round(a * b * 10 ** (p + q) * 1e4) / 1e4, w = 'Erreur de virgule : compte les zéros et les décimales.';
+    return numQ({ text: `Combien font ${nf(x, 4)} × ${nf(y)} ?`,
+      exp: E({ r: `<p>${a} × ${b} = ${a * b}, puis 10<sup>${p}</sup> × 10<sup>${q}</sup> = 10<sup>${p + q}</sup> : ${nf(ans, 4)}.</p>`, p: `<p>${nf(x, 4)} a ${-p} décimale${p < -1 ? 's' : ''} et ${nf(y)} a ${q} zéros : il reste 10<sup>${p + q}</sup>.</p>` }) },
+    ans, [[ans * 10, 'calc', w], [ans / 10, 'calc', w], [ans * 100, 'calc', w], [ans / 100, 'calc', w]], { step: ans, min: 1e-4, dp: 4, fmt: v => nf(v, 4) });
+  });
+
+  def('pui.sys', 'pui', 3, 'Système de puissances', 'powrules', () => {
+    const k = pick([2, 3, 8]); let m, n; do { m = int(2, 9); n = int(3, 12); } while (m === n || (m + n) % 3);
+    const e = (m + n) / 3;
+    return numQ({ text: `A, B et C sont des nombres tels que A × B × C² = ${sup(k, m)} et A² × B² × C = ${sup(k, n)}. Que vaut A × B × C ?`,
+      exp: E({ r: `<p>Multiplie les deux égalités : A³ × B³ × C³ = ${sup(k, m + n)}, donc (ABC)³ = ${sup(k, m + n)} et ABC = ${sup(k, e)}.</p>`, p: '<p>Inutile de trouver A, B et C séparément.</p>' }) },
+    e, [[m + n, 'methode', 'Tu as multiplié les égalités sans prendre la racine cubique.'], ...((m + n) % 2 ? [] : [[(m + n) / 2, 'calc', 'En multipliant, chaque lettre est au cube : (ABC)³, donc ÷ 3.']]), [m, 'inatt', 'C\'est l\'exposant de la première égalité seulement.']], { min: 1, dp: 0, fmt: v => sup(k, v) });
+  });
+
   // ---------- Automatismes (pavé numérique) ----------
   const dec = (n, dp) => { const s = String(n).padStart(dp + 1, '0'); const i = s.slice(0, -dp), f = s.slice(-dp).replace(/0+$/, ''); return f ? i + ',' + f : i; };
   const AUTO = {
@@ -624,6 +972,8 @@
     x25: { label: 'Multiplier par 25', fast: 5000, tip: 'x25', f() { const n = int(3, 48) * 2; return { text: `${n} × 25`, a: String(n * 25) }; } },
     x11: { label: 'Multiplier par 11', fast: 5000, tip: 'x11', f() { let n; do n = int(12, 98); while (n % 10 === 0); return { text: `${n} × 11`, a: String(n * 11) }; } },
     idrem: { label: 'Produits autour d\'un nombre rond', fast: 6000, tip: 'idrem', f() { const a = pick([20, 30, 40, 50, 60, 70]), b = int(1, 3); return { text: `${a - b} × ${a + b}`, a: String(a * a - b * b) }; } },
+    sqrt: { label: 'Racines carrées', fast: 4000, tip: 'sqnear', f() { const n = int(11, 25); return { text: `√${n * n}`, a: String(n) }; } },
+    pow: { label: 'Puissances', fast: 4000, tip: 'powrules', f() { const [b, e] = pick([[2, 5], [2, 6], [2, 7], [2, 8], [2, 9], [2, 10], [2, 12], [3, 3], [3, 4], [3, 5], [3, 6], [5, 3], [5, 4], [4, 3], [6, 3], [7, 3]]); return { text: `${b}<sup>${e}</sup>`, a: String(b ** e) }; } },
   };
 
   // ---------- Astuces (bibliothèque) ----------
@@ -664,6 +1014,25 @@
     { id: 'units', chap: 'conv', title: 'Unités d\'aire et de volume', rule: 'Longueurs × 10 par unité ; aires × 100 ; volumes × 1 000. 1 L = 1 dm³ ; 1 ha = 10 000 m².', ex: '3,5 m² = 35 000 cm²' },
     { id: 'handshake', chap: 'salut', title: 'Poignées de main', rule: 'N × (N − 1) ÷ 2. Aller-retour ou 2 bises : N × (N − 1).', ex: '12 personnes → 66 poignées de main' },
     { id: 'elim', chap: 'salut', title: 'Tournoi à élimination directe', rule: 'Un match = un éliminé : N − 1 matchs.', ex: '64 joueurs → 63 matchs' },
+    { id: 'rectpa', chap: 'geo', title: 'Rectangle', rule: 'Demi-périmètre = L + l. Aire = L × l. Un carré d\'aire A a pour côté √A.', ex: 'P = 24 et L = 7 → l = 5, aire 35' },
+    { id: 'angles', chap: 'geo', title: 'Angles', rule: 'Triangle : 180°. Polygone à n côtés : 180 × (n − 2) ; s\'il est régulier, divise par n.', ex: 'Hexagone : 720°, chaque angle 120°' },
+    { id: 'pythtrip', chap: 'geo', title: 'Triplets de Pythagore', rule: '3-4-5, 5-12-13, 8-15-17, 7-24-25 et leurs multiples (6-8-10, 9-12-15…). Diagonale d\'un carré de côté c : c√2.', ex: 'Côtés 9 et 12 → hypoténuse 15' },
+    { id: 'circle', chap: 'geo', title: 'Cercle et disque', rule: 'P = 2πr, A = πr². Carré inscrit : sa diagonale est un diamètre, son aire vaut 2r².', ex: 'P = 10π → r = 5 → A = 25π' },
+    { id: 'scale', chap: 'geo', title: 'Agrandissement', rule: 'Longueurs × k → aires × k², volumes × k³.', ex: 'Arêtes × 4 → volume × 64' },
+    { id: 'area', chap: 'geo', title: 'Aires à connaître', rule: 'Triangle : b × h ÷ 2. Trapèze : (B + b) × h ÷ 2. Losange : D × d ÷ 2.', ex: 'Trapèze de bases 10 et 6, hauteur 4 → 32' },
+    { id: 'coins', chap: 'proba', title: 'Pièces et enfants', rule: 'n lancers : 2ⁿ cas. Nombre de façons d\'avoir 0, 1, 2… piles : 3 pièces 1-3-3-1 ; 4 pièces 1-4-6-4-1.', ex: '3 pièces, exactement 2 piles : 3/8' },
+    { id: 'count36', chap: 'proba', title: 'Deux dés', rule: '36 cas. Somme s : 6 − |s − 7| cas (7 est la plus fréquente). 6 doubles.', ex: 'Somme 9 : 4/36 = 1/9' },
+    { id: 'complement', chap: 'proba', title: 'Au moins un', rule: 'P(au moins un) = 1 − P(aucun).', ex: 'Au moins un 6 avec 2 dés : 1 − 25/36 = 11/36' },
+    { id: 'noreplace', chap: 'proba', title: 'Tirage sans remise', rule: 'Après chaque tirage, le numérateur et le dénominateur baissent de 1.', ex: '3 rouges sur 8 : 3/8 × 2/7 = 3/28' },
+    { id: 'indep', chap: 'proba', title: '« Et » et « ou »', rule: 'Indépendants : P(A et B) = P(A) × P(B). P(A ou B) = P(A) + P(B) − P(A et B).', ex: 'Cœur ou roi (52 cartes) : 13 + 4 − 1 = 16 cartes' },
+    { id: 'countAB', chap: 'proba', title: 'Compter de A à B', rule: 'Il y a B − A + 1 entiers de A à B.', ex: 'Boules de 0 à 104 : 105 boules' },
+    { id: 'simplecomp', chap: 'int', title: 'Simples ou composés', rule: 'Simples : C × t × n. Composés : C × (1 + t)ⁿ. 1,1² = 1,21 ; 1,1³ = 1,331 ; 1,05² = 1,1025 ; 1,2² = 1,44.', ex: '1 000 € à 10 % sur 2 ans : 1 210 €' },
+    { id: 'intrate', chap: 'int', title: 'Retrouver le taux', rule: 'En composés, intérêts de la 2e année = intérêts de la 1re × (1 + t). Taux = écart ÷ intérêts de la 1re année.', ex: '180 € puis 185,40 € → 5,4 ÷ 180 = 3 %' },
+    { id: 'rule72', chap: 'int', title: 'Règle de 72', rule: 'En composés, un capital double en environ 72 ÷ taux années.', ex: 'À 8 % : environ 9 ans' },
+    { id: 'powrules', chap: 'pui', title: 'Règles des puissances', rule: 'aᵐ × aⁿ = aᵐ⁺ⁿ ; aᵐ ÷ aⁿ = aᵐ⁻ⁿ ; (aᵐ)ⁿ = aᵐˣⁿ ; aᵐ × bᵐ = (ab)ᵐ. À connaître : 2¹⁰ = 1 024, 3⁵ = 243, 5⁴ = 625.', ex: '2⁵ × 5⁵ = 10⁵' },
+    { id: 'samepow', chap: 'pui', title: 'Comparer des puissances', rule: 'Ramène tout au même exposant (ou à la même base).', ex: '2³⁰ = 8¹⁰ < 3²⁰ = 9¹⁰' },
+    { id: 'sqrtsimp', chap: 'pui', title: 'Simplifier une racine', rule: 'Sors le plus grand carré parfait : √(a² × b) = a√b. Et √a + √b ≠ √(a + b).', ex: '√50 = √(25 × 2) = 5√2' },
+    { id: 'pow10', chap: 'pui', title: 'Puissances de 10', rule: 'Multiplie les chiffres, puis compte zéros et décimales : 10ᵖ × 10ᵠ = 10ᵖ⁺ᵠ.', ex: '0,003 × 4 000 = 12' },
   ];
   const TIP = Object.fromEntries(TIPS.map(t => [t.id, t]));
   // notions (types de QCM et automatismes) qui entraînent chaque astuce
@@ -745,6 +1114,44 @@
       <li>Tournoi à élimination directe : <b>N − 1</b> matchs (un éliminé par match).</li>
       <li>Retrouver N : N × (N − 1) = 2 × total. Cherche deux nombres consécutifs, ou teste les réponses.</li>
       <li>Deux groupes de n qui se saluent entre groupes seulement : n × n.</li></ul>`,
+    geo: `<ul>
+      <li>Rectangle : <b>demi-périmètre = L + l</b>, aire L × l. Triangle : b × h ÷ 2. Trapèze : (B + b) × h ÷ 2. Losange : D × d ÷ 2.</li>
+      <li>Angles : triangle <b>180°</b> ; isocèle = 2 angles égaux ; équilatéral = 60° partout. Polygone à n côtés : <b>180 × (n − 2)</b>.</li>
+      <li>Pythagore : a² + b² = c² (c = hypoténuse, le plus grand côté). Repère les <b>triplets</b> 3-4-5, 5-12-13, 8-15-17 et leurs multiples.</li>
+      <li>Cercle : P = 2πr, A = πr². Carré inscrit dans un cercle : diagonale = diamètre. Triangle inscrit avec un diamètre pour côté : il est rectangle.</li>
+      <li>Agrandissement × k : longueurs × k, <b>aires × k²</b>, <b>volumes × k³</b>.</li>
+      <li>Volumes : pavé L × l × h ; cube c³ ; cylindre πr²h ; cône et pyramide : ⅓ × base × hauteur.</li></ul>
+      <h3 class="fx">Exemples résolus</h3>
+      <div class="exres"><p><b>Une pièce de 48 m² a une largeur égale aux 3/4 de sa longueur. Diagonale ?</b></p><p>3/4 × L² = 48 → L² = 64, L = 8, largeur 6. Triplet 6-8-10 : <b>10 m</b>.</p></div>
+      <div class="exres"><p><b>Les angles d'un triangle sont proportionnels à 1, 2 et 3. Nature du triangle ?</b></p><p>6 parts pour 180° → 30°, 60°, 90° : il est <b>rectangle</b>.</p></div>`,
+    proba: `<ul>
+      <li>Probabilité = cas favorables ÷ cas possibles, avec des cas <b>équiprobables</b>.</li>
+      <li>Pièces, enfants : 2ⁿ cas. Exactement k : compte les ordres (3 pièces : 1-3-3-1 ; 4 : 1-4-6-4-1).</li>
+      <li>Deux dés : <b>36 cas</b>. Somme s : 6 − |s − 7| cas. 6 doubles.</li>
+      <li><b>Au moins un</b> : 1 − P(aucun).</li>
+      <li>Tirages successifs : « et » → on multiplie. <b>Sans remise</b>, le dénominateur baisse de 1 à chaque tirage.</li>
+      <li>« A ou B » : P(A) + P(B) − P(A et B). Entiers de A à B : <b>B − A + 1</b>.</li></ul>
+      <h3 class="fx">Exemples résolus</h3>
+      <div class="exres"><p><b>Une famille a 3 enfants. Probabilité d'avoir 2 filles et 1 garçon ?</b></p><p>8 cas ; FFG, FGF, GFF conviennent : <b>3/8</b>.</p></div>
+      <div class="exres"><p><b>Urne de 6 boules numérotées de 0 à 5, on en tire 2 sans remise. Probabilité que la somme soit ≤ 6 ?</b></p><p>15 paires possibles (6 × 5 ÷ 2). Paires de somme > 6 : (2,5), (3,4), (3,5), (4,5), soit 4. Donc <b>11/15</b>.</p></div>`,
+    int: `<ul>
+      <li><b>Intérêts simples</b> : chaque année rapporte C × t. Sur n ans : C × t × n.</li>
+      <li><b>Intérêts composés</b> : on multiplie par (1 + t) chaque année : C × (1 + t)ⁿ. Repères : 1,1² = 1,21 ; 1,1³ = 1,331 ; 1,05² = 1,1025 ; 1,2² = 1,44.</li>
+      <li>Retrouver le taux en composés : intérêts de la 2e année ÷ intérêts de la 1re = 1 + t.</li>
+      <li>Placement sur deux taux : <b>fausse hypothèse</b> (tout au taux le plus bas, puis répartis l'écart) ou test des réponses.</li>
+      <li>Doublement en composés : environ <b>72 ÷ taux</b> années.</li></ul>
+      <h3 class="fx">Exemples résolus</h3>
+      <div class="exres"><p><b>Un placement rapporte 180 € la 1re année et 185,40 € la 2e. Taux et somme placée ?</b></p><p>5,40 ÷ 180 = 3 %. Capital : 180 ÷ 0,03 = <b>6 000 €</b>.</p></div>
+      <div class="exres"><p><b>1 200 € placés en partie à 3 %, le reste à 7 %. Total après un an : 1 250 €. Part à 7 % ?</b></p><p>Tout à 3 % : 1 236 €. Écart 14 € ÷ 4 % = <b>350 €</b>.</p></div>`,
+    pui: `<ul>
+      <li>aᵐ × aⁿ = aᵐ⁺ⁿ ; aᵐ ÷ aⁿ = aᵐ⁻ⁿ ; (aᵐ)ⁿ = aᵐˣⁿ ; aᵐ × bᵐ = (ab)ᵐ ; a⁰ = 1.</li>
+      <li>Comparer : ramène au <b>même exposant</b> (2³⁰ = 8¹⁰) ou à la même base.</li>
+      <li>Racines : √(a × b) = √a × √b ; <b>√(a² × b) = a√b</b> ; mais √a + √b ≠ √(a + b).</li>
+      <li>Puissances de 10 : multiplie les chiffres, puis compte les zéros et les décimales.</li>
+      <li>À connaître : 2¹⁰ = 1 024 ; 3⁵ = 243 ; 5⁴ = 625 ; 6³ = 216 ; 7³ = 343.</li></ul>
+      <h3 class="fx">Exemples résolus</h3>
+      <div class="exres"><p><b>3ˣ = 11 et 11ʸ = 729. Que vaut x × y ?</b></p><p>11ʸ = (3ˣ)ʸ = 3ˣʸ et 729 = 3⁶ : <b>x × y = 6</b>.</p></div>
+      <div class="exres"><p><b>A × B × C² = 8³ et A² × B² × C = 8⁶. Que vaut A × B × C ?</b></p><p>En multipliant : (ABC)³ = 8⁹, donc ABC = 8³ = <b>512</b>.</p></div>`,
   };
 
   // ---------- API ----------

@@ -176,3 +176,9 @@
 .pill { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; white-space: nowrap; background: var(--bg); color: var(--muted); }
 .pill.mid { background: var(--accent-soft); color: var(--accent-text); }
 .pill.good { background: var(--good-soft); color: var(--good); }
+
+/* Fiches : exemples résolus */
+.fiche .fx { font-size: 15px; margin: 16px 0 8px; }
+.exres { background: var(--bg); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; line-height: 1.5; }
+.exres p { margin: 0 0 4px; }
+.exres p:last-child { margin: 0; }

@@ -153,7 +153,7 @@
     return out;
   }
   // un chapitre jamais vu passe en priorité, dans cet ordre
-  const NOTION_ORDER = ['pct', 'eq', 'moy', 'frac', 'vit', 'trav', 'conv', 'salut'];
+  const NOTION_ORDER = ['pct', 'eq', 'moy', 'frac', 'vit', 'trav', 'conv', 'salut', 'geo', 'proba', 'int', 'pui'];
   function chooseNotion() {
     const ids = ready().map(c => c.id);
     const unseen = NOTION_ORDER.filter(id => ids.includes(id) && chapCount(id) === 0);

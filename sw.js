@@ -1,7 +1,7 @@
 // Service worker d'AutoMath : l'app marche hors ligne et se met à jour toute seule.
 // Fichiers de l'app : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
 // Polices Google : cache d'abord.
-const CACHE = 'automath-v5';
+const CACHE = 'automath-v7';
 const SHELL = [
   './',
   './index.html',
@@ -34,8 +34,9 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
 
   if (url.origin === location.origin) {
+    // revalide toujours auprès du serveur : évite de mélanger un fichier neuf et un ancien après une mise à jour
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then(res => {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(req, copy));

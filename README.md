@@ -37,6 +37,12 @@ En cas de changement de la liste des fichiers mis en cache, augmenter `CACHE` da
 node -e "console.log(require('./js/gen.js').selfTest())"
 ```
 
+Puis la vérification indépendante des réponses (recalcul par énumération) :
+
+```
+node tools/verify.js
+```
+
 ## Tester en local
 
 ```

@@ -27,6 +27,9 @@
   const load = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
   const S = Object.assign({ stats: {}, chaps: {}, auto: {}, cards: [], streak: null, session: null, prac: null, history: {}, lastNotion: null, total: 0, errs: [] }, load(KEY) || {});
   if (!Array.isArray(S.errs)) S.errs = [];
+  S.prefs = Object.assign({ len: 20 }, S.prefs);
+  if (!Array.isArray(S.exams)) S.exams = [];
+  S.sprints = Object.assign({ best: 0, hist: [] }, S.sprints);
   if (!S.streak) {
     // reprend la série de jours de l'ancienne version (objectif de 30 réponses rapides)
     const old = (load('carres.v1') || {}).streak;
@@ -176,17 +179,20 @@
   }
 
   // ---------- Séances ----------
+  // nombre de questions par bloc selon la durée choisie (10, 20 ou 30 minutes)
+  const LENS = { 10: { warm: 8, rev: 4, notion: 5, defi: 2 }, 20: { warm: 12, rev: 8, notion: 8, defi: 4 }, 30: { warm: 16, rev: 10, notion: 12, defi: 6 } };
+  const lens = () => LENS[S.prefs.len] || LENS[20];
   function planBlocks() {
-    const due = dueNotions().length, ch = chooseNotion();
-    return [{ id: 'warm', title: 'Échauffement' }, ...(due ? [{ id: 'rev', title: 'Révisions', n: Math.min(due, 8) }] : []),
-      { id: 'notion', title: chapOf(ch).name, chap: ch }, { id: 'defi', title: 'Défi chrono' }];
+    const l = lens(), due = dueNotions().length, ch = chooseNotion();
+    return [{ id: 'warm', title: 'Échauffement', n: l.warm }, ...(due ? [{ id: 'rev', title: 'Révisions', n: Math.min(due, l.rev) }] : []),
+      { id: 'notion', title: chapOf(ch).name, chap: ch, n: l.notion }, { id: 'defi', title: 'Défi chrono', n: l.defi }];
   }
   function newDaily(kind) {
     const blocks = planBlocks().map(p => {
-      if (p.id === 'warm') return { ...p, items: warmItems(12) };
-      if (p.id === 'rev') return { ...p, items: dueNotions().slice(0, 8).map(genFor) };
-      if (p.id === 'notion') return { ...p, intro: true, items: series(p.chap, 8) };
-      return { ...p, timed: DEFI_SEC, items: mixed(4) };
+      if (p.id === 'warm') return { ...p, items: warmItems(p.n) };
+      if (p.id === 'rev') return { ...p, items: dueNotions().slice(0, p.n).map(genFor) };
+      if (p.id === 'notion') return { ...p, intro: true, items: series(p.chap, p.n) };
+      return { ...p, timed: DEFI_SEC, items: mixed(p.n) };
     });
     blocks.forEach(b => { b.i = 0; b.res = []; });
     return { date: dayKey(), kind, blocks, b: 0, startEst: estimate(), done: false, mastered: [] };
@@ -198,9 +204,10 @@
     blocks: [{ id: 'prac', title: G.TYPES[t].label, chap: G.TYPES[t].chap, items: [1, 1, 2, 2, 3, 3].map(d => G.gen(t, Math.max(d, diffFor(t) - 1))), i: 0, res: [] }] });
 
   const blockName = b => (b.id === 'notion' ? 'Notion du jour' : b.title);
-  const blockDesc = b => ({ warm: '12 calculs au pavé numérique', rev: `${plural(b.items ? b.items.length : b.n, 'notion')} à revoir aujourd'hui`,
-    notion: `${b.title} : fiche, puis 8 questions`, defi: '4 questions mélangées, 80 s chacune', prac: `${b.items ? b.items.length : 10} questions` })[b.id];
-  const blockTime = b => ({ warm: '3 min', rev: '5 min', notion: '10 min', defi: '5 min' })[b.id];
+  const nOf = b => (b.items ? b.items.length : b.n);
+  const blockDesc = b => ({ warm: `${nOf(b)} calculs au pavé numérique`, rev: `${plural(nOf(b), 'notion')} à revoir aujourd'hui`,
+    notion: `${b.title} : fiche, puis ${nOf(b)} questions`, defi: `${nOf(b)} questions mélangées, 80 s chacune`, prac: `${nOf(b)} questions` })[b.id];
+  const blockTime = b => `${Math.max(1, Math.round(({ warm: 15, rev: 70, notion: 75, defi: 80 }[b.id] || 60) * nOf(b) / 60 + (b.id === 'notion' ? 1 : 0)))} min`;
 
   // ---------- Navigation ----------
   window.AM = { view: 'home' };
@@ -209,6 +216,7 @@
   const cur = () => S[runRef];
   function go(v, navAs) {
     if (AM.view === 'mental' && v !== 'mental' && window.AMmental) window.AMmental.stop();
+    if (AM.view === 'run' && runRef === 'exam' && S.exam && !S.exam.done) { examLeave(S.exam); save(); }
     stopClock();
     AM.view = v;
     SCREENS.forEach(s => { $('scr-' + s).hidden = s !== v; });
@@ -235,7 +243,12 @@
     let action;
     if (running) action = `<button class="go" id="h-go">Reprendre la séance<small>Bloc ${s.b + 1} sur ${s.blocks.length} · ${blockName(s.blocks[s.b])}</small></button>`;
     else if (doneToday) action = `<div class="box done-card">${ICON.check}<div><b>Séance du jour terminée</b><p class="sub">Reviens demain pour garder ta série.</p></div></div><button class="ghost-btn wide-btn" id="h-go">Séance bonus</button>`;
-    else action = `<button class="go" id="h-go">Commencer la séance du jour<small>Environ 20 minutes · tu peux t'arrêter à tout moment</small></button>`;
+    else action = `<button class="go" id="h-go">Commencer la séance du jour<small>Environ ${S.prefs.len} minutes · tu peux t'arrêter à tout moment</small></button>`;
+    const lenSel = running ? '' : `<div class="len" role="group" aria-label="Durée de la séance"><span>Durée</span>${[10, 20, 30].map(m => `<button data-len="${m}" aria-pressed="${S.prefs.len === m}">${m} min</button>`).join('')}</div>`;
+    const ex = S.exam && !S.exam.done ? S.exam : null, exLeft = ex ? examLeft(ex) : 0, bestExam = S.exams.length ? Math.max(...S.exams.map(x => x.score)) : null;
+    const modes = `<div class="box modes"><p class="eyebrow">Mode examen</p>
+      <button class="mode" id="h-exam"><b>${ex ? (exLeft > 0 ? 'Reprendre l\'épreuve blanche' : 'Épreuve terminée : voir le résultat') : 'Épreuve blanche'}</b><span>${ex && exLeft > 0 ? `${mmss(exLeft)} restantes` : `15 questions · 20 min · barème officiel${bestExam !== null ? ` · record ${bestExam}/60` : ''}`}</span></button>
+      <button class="mode" id="h-sprint"><b>Sprint automatismes</b><span>3 min chrono${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button></div>`;
     const rows = plan.map((b, i) => {
       const st = running ? (i < s.b ? 'done' : i === s.b ? 'cur' : '') : doneToday ? 'done' : '';
       return `<li class="${st}"><span class="ic">${st === 'done' ? ICON.check : ''}</span><span>${blockName(b)}${b.id === 'notion' ? `<small>${b.title}</small>` : ''}</span><span class="d">${blockTime(b)}</span></li>`;
@@ -251,11 +264,16 @@
         <p class="sub small">${ev === 0 ? 'Pas encore évaluée. Les chapitres pas encore travaillés comptent comme des réponses au hasard.' : `Évaluée sur ${ev} chapitre${ev > 1 ? 's' : ''} sur ${G.CHAPTERS.length}. Les autres comptent comme des réponses au hasard.`}</p>
       </div>
       ${action}
+      ${lenSel}
       ${doneToday && !running ? '' : `<ul class="steps" aria-label="Déroulé de la séance">${rows}</ul>`}
       ${prioHtml}
+      ${modes}
       ${dueN ? `<p class="sub small center">${plural(dueN, 'notion')} à réviser aujourd'hui</p>` : ''}`;
     $('h-go').onclick = startDaily;
+    $('h-exam').onclick = startExam;
+    $('h-sprint').onclick = startSprint;
     $('scr-home').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
+    $('scr-home').querySelectorAll('[data-len]').forEach(b => { b.onclick = () => { S.prefs.len = +b.dataset.len; save(); renderHome(); }; });
   }
   function startFocus(t) { S.prac = newFocus(t); save(); runRef = 'prac'; go('run'); }
   function startDaily() {
@@ -267,7 +285,11 @@
   // ---------- Séance en cours ----------
   let clock = null, t0 = 0, numBuf = '', advanceTimer = null;
   function stopClock() { if (clock) { clearInterval(clock); clock = null; } if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; } }
-  function quit() { stopClock(); go(runRef === 'prac' ? 'chap' : 'home'); }
+  function quit() {
+    stopClock();
+    if (runRef === 'sprint') S.sprint = null; // un sprint interrompu ne compte pas
+    go(runRef === 'prac' ? 'chap' : 'home');
+  }
 
   function topBar(s, sub) {
     const blk = s.blocks[s.b];
@@ -282,6 +304,8 @@
     stopClock();
     const s = cur(), el = $('scr-run');
     if (!s) { go('home'); return; }
+    if (runRef === 'exam') { renderExam(el); const q = $('r-quit'); if (q) q.onclick = quit; return; }
+    if (runRef === 'sprint') { renderSprint(el); const q = $('r-quit'); if (q) q.onclick = quit; return; }
     if (s.done) { renderBilan(s, el); return; }
     const blk = s.blocks[s.b];
     if (blk.intro && !blk.introDone) renderIntro(s, blk, el);
@@ -466,6 +490,184 @@
     $('r-home').onclick = () => { if (prac) { S.prac = null; save(); } go(prac ? 'chap' : 'home'); };
   }
 
+  // ---------- Épreuve blanche : 15 questions, 20 minutes, +4 par bonne réponse, 0 sinon ----------
+  const EXAM_MS = 20 * 60 * 1000;
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const mmss = ms => { const t = Math.ceil(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  const examLeft = e => Math.max(0, e.start + EXAM_MS - Date.now());
+  // comme au TAGE MAGE : 5 faciles, 5 moyennes, 5 difficiles, mélangées ; chapitres tirés selon leur poids
+  function newExam() {
+    const cs = ready(), items = [], used = new Set();
+    for (const lv of shuffle([1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3])) {
+      let t, tries = 0;
+      do {
+        const c = wpick(cs, cs.map(x => x.w)), ts = G.typesOf(c.id), same = ts.filter(x => G.TYPES[x].lvl === lv);
+        t = G.pick(same.length ? same : ts);
+      } while (used.has(t) && ++tries < 40);
+      used.add(t); items.push(G.gen(t, lv));
+    }
+    return { start: Date.now(), items, ans: items.map(() => null), times: items.map(() => 0), cur: 0, done: false };
+  }
+  let examEnter = 0;
+  function examLeave(e) { if (examEnter) { e.times[e.cur] += Date.now() - examEnter; examEnter = 0; } }
+  function examGo(e, i) { examLeave(e); e.cur = Math.max(0, Math.min(14, i)); save(); renderRun(); window.scrollTo(0, 0); }
+  function startExam() { if (!S.exam) { S.exam = newExam(); save(); } runRef = 'exam'; go('run'); }
+  function renderExam(el) {
+    const e = S.exam;
+    if (e.done) { renderExamResult(e, el); return; }
+    if (examLeft(e) <= 0) { finishExam(e); return; }
+    const q = e.items[e.cur], a = e.ans[e.cur], blank = e.ans.filter(x => x === null).length;
+    el.innerHTML = `<div class="run-top"><button class="icon-btn" id="r-quit" aria-label="Quitter l'épreuve (le chrono continue)">${ICON.x}</button>
+      <div class="run-title">Épreuve blanche<small>Question ${e.cur + 1} sur 15 · ${blank} sans réponse</small></div><span class="clock" id="r-clock"></span></div>
+      <div class="xgrid" id="x-grid">${e.items.map((_, i) => `<button class="${i === e.cur ? 'cur' : ''}${e.ans[i] !== null ? ' done' : ''}" data-q="${i}" aria-label="Question ${i + 1}${e.ans[i] !== null ? ', répondue' : ''}">${i + 1}</button>`).join('')}</div>
+      <div class="box"><p class="qtext">${q.text}</p></div>
+      <div class="opts" id="r-opts">${q.choices.map((c, i) => `<button class="opt${a === i ? ' sel' : ''}" data-i="${i}" aria-pressed="${a === i}"><span class="l">${LET[i]}</span><span class="v">${c.h}</span></button>`).join('')}</div>
+      <div class="xnav">${e.cur ? '<button class="btn2" id="x-prev">Précédente</button>' : '<span></span>'}${e.cur < 14 ? '<button class="btn2" id="x-next">Suivante</button>' : '<span></span>'}</div>
+      <div id="x-end"><button class="big-btn" id="x-finish">Terminer l'épreuve</button></div>`;
+    examEnter = Date.now();
+    $('r-opts').onclick = ev => {
+      const b = ev.target.closest('.opt'); if (!b) return;
+      e.ans[e.cur] = +b.dataset.i; save();
+      el.querySelectorAll('.opt').forEach(o => { o.classList.toggle('sel', o === b); o.setAttribute('aria-pressed', o === b); });
+      // on passe à la question suivante sans réponse, comme on le ferait sur papier
+      const nextBlank = [...e.ans.keys()].find(i => i > e.cur && e.ans[i] === null);
+      advanceTimer = setTimeout(() => examGo(e, nextBlank ?? (e.cur < 14 ? e.cur + 1 : e.cur)), 280);
+    };
+    $('x-grid').onclick = ev => { const b = ev.target.closest('[data-q]'); if (b) examGo(e, +b.dataset.q); };
+    if ($('x-prev')) $('x-prev').onclick = () => examGo(e, e.cur - 1);
+    if ($('x-next')) $('x-next').onclick = () => examGo(e, e.cur + 1);
+    $('x-finish').onclick = () => {
+      const left = e.ans.filter(x => x === null).length;
+      if (!left) { finishExam(e); return; }
+      $('x-end').innerHTML = `<div class="box confirm"><p>${plural(left, 'question')} sans réponse. Une réponse au hasard ne coûte rien et rapporte en moyenne 0,8 point : réponds avant de terminer.</p>
+        <div class="acts"><button class="btn2" id="x-back">Continuer l'épreuve</button><button class="btn1" id="x-ok">Terminer quand même</button></div></div>`;
+      $('x-back').onclick = () => examGo(e, e.ans.findIndex(x => x === null));
+      $('x-ok').onclick = () => finishExam(e);
+    };
+    const tick = () => {
+      const c = $('r-clock'); if (!c) return;
+      const left = examLeft(e); c.textContent = mmss(left); c.classList.toggle('late', left <= 120000);
+      if (left <= 0) finishExam(e);
+    };
+    tick(); clock = setInterval(tick, 500);
+  }
+  function finishExam(e) {
+    if (e.done) return;
+    stopClock(); examLeave(e);
+    e.done = true; e.used = Math.min(EXAM_MS, Date.now() - e.start);
+    let ok = 0;
+    e.items.forEach((q, i) => {
+      const a = e.ans[i]; if (a === null) return;
+      const good = a === q.ans, why = (q.choices[a] || {}).why;
+      if (good) ok++;
+      recordQ(q, good, e.times[i], good ? null : why ? why[0] : '?');
+    });
+    e.ok = ok;
+    S.exams.push({ d: dayKey(), score: 4 * ok, ok, blank: e.ans.filter(x => x === null).length, used: e.used });
+    if (S.exams.length > 60) S.exams.shift();
+    S.history[dayKey()] = estimate();
+    save(); renderRun(); window.scrollTo(0, 0);
+  }
+  function renderExamResult(e, el) {
+    const score = 4 * e.ok, blank = e.ans.filter(x => x === null).length, best = Math.max(...S.exams.map(x => x.score));
+    const slow = e.times.filter(t => t > 120000).length;
+    const advice = [
+      score >= 36 ? 'Tu es dans ton objectif (36–41).' : `Il te manque ${36 - score} points, soit ${Math.ceil((36 - score) / 4)} bonne${Math.ceil((36 - score) / 4) > 1 ? 's' : ''} réponse${Math.ceil((36 - score) / 4) > 1 ? 's' : ''}, pour atteindre 36.`,
+      blank ? `${plural(blank, 'question')} sans réponse : au hasard, tu aurais gagné en moyenne ${nfmt(blank * 0.8)} point${blank * 0.8 >= 2 ? 's' : ''}. Réponds toujours.` : '',
+      slow ? `Tu as passé plus de 2 minutes sur ${plural(slow, 'question')}. Au-delà de 80 s, réponds au mieux et passe à la suite.` : '',
+    ].filter(Boolean).map(t => `<p>${t}</p>`).join('');
+    const rows = e.items.map((q, i) => {
+      const a = e.ans[i], st = a === null ? ['blank', '–'] : a === q.ans ? ['ok', '✓'] : ['ko', '✗'], why = a !== null && a !== q.ans ? (q.choices[a] || {}).why : null;
+      return `<details class="xrow ${st[0]}"><summary><span class="xn">${i + 1}</span><span class="xc">${G.TYPES[q.type].label}<small>${chapOf(q.chap).name}</small></span><span class="xt">${Math.round(e.times[i] / 1000)} s</span><span class="xs">${st[1]}</span></summary>
+        <div class="xbody"><p class="qtext">${q.text}</p>
+        <p class="sub">${a === null ? 'Sans réponse' : `Ta réponse : ${LET[a]} (${q.choices[a].h})`} · bonne réponse : ${LET[q.ans]} (${q.choices[q.ans].h})</p>
+        ${why ? `<div class="diag"><b>${G.CAUSES[why[0]]}</b><span>${why[1]}</span></div>` : ''}<div class="exs">${q.exp}${tipBox(q.tip)}</div></div></details>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="box center"><p class="eyebrow">Épreuve blanche terminée</p><div class="est big"><span class="v">${score}</span><span class="u">/60</span></div>${gauge(score)}
+        ${score >= best && S.exams.length > 1 ? '<span class="badge">Nouveau record</span>' : ''}</div>
+      <div class="stat-row">
+        <div class="stat"><small>Justes</small><b>${e.ok}/15</b></div>
+        <div class="stat"><small>Sans réponse</small><b>${blank}</b></div>
+        <div class="stat"><small>Temps</small><b>${mmss(e.used)}</b></div>
+      </div>
+      <div class="box advice">${advice}</div>
+      <p class="eyebrow">Correction · touche une question pour la revoir</p>
+      <div class="xlist">${rows}</div>
+      <button class="big-btn" id="r-home">Retour à l'accueil</button>`;
+    $('r-home').onclick = () => { S.exam = null; save(); go('home'); };
+  }
+  const nfmt = v => String(Math.round(v * 10) / 10).replace('.', ',');
+
+  // ---------- Sprint automatismes : 3 minutes, un maximum de calculs justes ----------
+  const SPRINT_MS = 3 * 60 * 1000;
+  let sprintBuf = '', sprintLock = false;
+  function startSprint() { S.sprint = { start: Date.now(), items: warmItems(25), i: 0, ok: 0, n: 0, miss: [], done: false }; save(); runRef = 'sprint'; go('run'); }
+  function renderSprint(el) {
+    const s = S.sprint;
+    if (s.done) { renderSprintResult(s, el); return; }
+    if (s.start + SPRINT_MS <= Date.now()) { finishSprint(s); return; }
+    if (s.i >= s.items.length - 3) s.items.push(...warmItems(20));
+    const it = s.items[s.i];
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'del'].map(k => k === 'del'
+      ? '<button class="k-del" data-k="del" aria-label="Effacer">⌫</button>' : `<button data-k="${k}">${k}</button>`).join('') + '<button class="k-ok wide" data-k="ok">OK</button>';
+    el.innerHTML = `<div class="run-top"><button class="icon-btn" id="r-quit" aria-label="Arrêter le sprint">${ICON.x}</button>
+      <div class="run-title">Sprint automatismes<small>${plural(s.ok, 'juste')}${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</small></div><span class="clock" id="r-clock"></span></div>
+      <div class="pbar timer" id="r-timer"><div></div></div>
+      <div class="card" id="sp-card"><div class="wq">${it.text}</div><div class="ans" id="r-ans"></div></div>
+      <div class="pad pad-num" id="r-pad">${keys}</div>`;
+    sprintBuf = ''; sprintLock = false; t0 = performance.now();
+    $('r-pad').onclick = ev => { const b = ev.target.closest('[data-k]'); if (b) sprintKey(b.dataset.k); };
+    const tick = () => {
+      const c = $('r-clock'); if (!c) return;
+      const left = Math.max(0, s.start + SPRINT_MS - Date.now());
+      c.textContent = mmss(left); c.classList.toggle('late', left <= 20000);
+      const bar = $('r-timer'); if (bar) { bar.firstChild.style.width = `${left / SPRINT_MS * 100}%`; bar.classList.toggle('low', left <= 20000); }
+      if (left <= 0) finishSprint(s);
+    };
+    tick(); clock = setInterval(tick, 250);
+  }
+  function sprintKey(k) {
+    const s = S.sprint; if (!s || s.done || sprintLock) return;
+    const it = s.items[s.i];
+    if (k === 'del') sprintBuf = sprintBuf.slice(0, -1);
+    else if (k === 'ok') { if (sprintBuf) sprintSubmit(s, it); return; }
+    else if (k === ',') { if (!sprintBuf || sprintBuf.includes(',')) return; sprintBuf += ','; }
+    else if (sprintBuf.length < 7) sprintBuf += k;
+    $('r-ans').textContent = sprintBuf;
+    if (sprintBuf.length === it.a.length && k !== ',') sprintSubmit(s, it);
+  }
+  function sprintSubmit(s, it) {
+    sprintLock = true;
+    const ms = performance.now() - t0, v = sprintBuf.replace(/,$/, ''), ok = v === it.a;
+    recordAuto(it.cat, ok, ms);
+    s.n++; if (ok) s.ok++; else s.miss.push([it.text, it.a, v]);
+    save();
+    $('sp-card').classList.add(ok ? 'good' : 'bad');
+    if (!ok) $('r-ans').innerHTML = `<s>${v}</s><span class="reveal">${it.a}</span>`;
+    advanceTimer = setTimeout(() => { if (AM.view === 'run' && runRef === 'sprint' && !s.done) { s.i++; save(); stopClock(); renderSprint($('scr-run')); } }, ok ? 180 : 1000);
+  }
+  function finishSprint(s) {
+    if (s.done) return;
+    stopClock(); s.done = true;
+    s.record = s.ok > S.sprints.best;
+    if (s.record) S.sprints.best = s.ok;
+    S.sprints.hist.push({ d: dayKey(), ok: s.ok, n: s.n }); if (S.sprints.hist.length > 60) S.sprints.hist.shift();
+    save(); renderRun();
+  }
+  function renderSprintResult(s, el) {
+    const miss = s.miss.slice(-12).map(([t, a, v]) => `<tr><td>${t}</td><td class="num"><b>${a}</b></td><td class="num sub">${v}</td></tr>`).join('');
+    el.innerHTML = `
+      <div class="box center"><p class="eyebrow">Sprint terminé</p><div class="est big"><span class="v">${s.ok}</span><span class="u">justes en 3 min</span></div>
+        ${s.record && s.ok ? '<span class="badge">Nouveau record</span>' : `<p class="sub">Record : ${S.sprints.best}</p>`}</div>
+      <div class="stat-row"><div class="stat"><small>Précision</small><b>${s.n ? Math.round(100 * s.ok / s.n) : 0} %</b></div><div class="stat"><small>Rythme</small><b>${s.n ? nfmt(180 / s.n) : '–'} s</b></div></div>
+      ${miss ? `<div class="box"><p class="eyebrow">À retenir</p><table class="tbl"><thead><tr><th>Calcul</th><th class="num">Réponse</th><th class="num">Toi</th></tr></thead><tbody>${miss}</tbody></table></div>` : ''}
+      <button class="big-btn" id="sp-again">Rejouer</button>
+      <button class="ghost-btn wide-btn" id="r-home">Retour à l'accueil</button>`;
+    $('sp-again').onclick = startSprint;
+    $('r-home').onclick = () => { S.sprint = null; save(); go('home'); };
+  }
+
   // ---------- Chapitres et fiches ----------
   // statut d'une astuce : maîtrisée quand les notions qui l'utilisent sont maîtrisées
   function tipStatus(t) {
@@ -542,6 +744,38 @@
     const rows = Object.entries(by).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<tr><td>${G.CAUSES[c] || 'Erreur de calcul probable'}</td><td class="num">${n}</td></tr>`).join('');
     return `<div class="box"><p class="eyebrow">Tes erreurs sur 30 jours</p><table class="tbl"><tbody>${rows}</tbody></table></div>`;
   }
+  function recordsBox() {
+    const ex = S.exams, best = ex.length ? Math.max(...ex.map(x => x.score)) : null;
+    const hist = ex.slice(-5).reverse().map(x => `<tr><td>${x.d.slice(8)}/${x.d.slice(5, 7)}</td><td class="num"><b>${x.score}</b>/60</td><td class="num sub">${x.ok}/15 justes</td></tr>`).join('');
+    return `<div class="box"><p class="eyebrow">Records</p><div class="stat-row">
+        <div class="stat"><small>Épreuve blanche</small><b>${best === null ? '–' : best + '/60'}</b></div>
+        <div class="stat"><small>Sprint</small><b>${S.sprints.best || '–'}</b></div>
+        <div class="stat"><small>Série</small><b>${S.streak.best || 0} j</b></div></div>
+      ${hist ? `<p class="sub small" style="margin-top:10px">Dernières épreuves blanches</p><table class="tbl"><tbody>${hist}</tbody></table>` : '<p class="sub small" style="margin-top:8px">Fais une épreuve blanche depuis l\'accueil pour mesurer ta note en conditions réelles.</p>'}</div>`;
+  }
+  // notions à retravailler : vues mais fragiles, triées par erreurs récentes
+  function weakBox() {
+    const list = Object.entries(S.sr).filter(([t, s]) => G.TYPES[t] && s.box <= 1)
+      .map(([t, s]) => ({ t, err: recentErrors(t, 5), m: typeMastery(t) ?? 0 })).sort((a, b) => b.err - a.err || a.m - b.m).slice(0, 8);
+    if (!list.length) return '';
+    return `<div class="box"><p class="eyebrow">À retravailler</p>${list.map(x => `<div class="prio-row"><div class="prio-t"><b>${G.TYPES[x.t].label}</b><span>${chapOf(G.TYPES[x.t].chap).name} · ${x.err ? `${plural(x.err, 'erreur')} sur les 5 dernières` : `maîtrise ${Math.round(x.m * 100)} %`}</span></div><button class="btn2 prio-go" data-focus="${x.t}">Travailler</button></div>`).join('')}</div>`;
+  }
+  // détail par notion, replié par chapitre
+  function notionsBox() {
+    const groups = ready().map(c => {
+      const rows = G.typesOf(c.id).map(t => {
+        const h = S.stats[t] || [], s = S.sr[t], [k, l] = NOTION_STATUS(s ? s.box : undefined), last = h.slice(-10);
+        return `<tr><td>${G.TYPES[t].label}</td><td class="num"><span class="pill ${k}">${l}</span></td><td class="num">${last.length ? Math.round(100 * last.filter(r => r[0]).length / last.length) + ' %' : '–'}</td><td class="num">${last.length ? Math.round(avg(last.map(r => r[1]))) + ' s' : '–'}</td></tr>`;
+      }).join('');
+      const ts = G.typesOf(c.id), ok = ts.filter(t => (S.sr[t] || {}).box >= 4).length;
+      return `<details class="ngroup"><summary><span>${c.name}</span><span class="sub small">${ok}/${ts.length} maîtrisées</span></summary><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Notion</th><th class="num">Statut</th><th class="num">Réussite</th><th class="num">Temps</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+    }).join('');
+    return `<div class="box"><p class="eyebrow">Notions par chapitre</p>${groups}<p class="sub small">Réussite et temps sur les 10 dernières questions de chaque notion.</p></div>`;
+  }
+  function tipsBox() {
+    const ok = G.TIPS.filter(t => tipStatus(t)[0] === 'good').length;
+    return `<div class="box"><p class="eyebrow">Astuces</p><p>${ok} maîtrisée${ok > 1 ? 's' : ''} sur ${G.TIPS.length}</p><button class="btn2 wide-btn" id="p-tips" style="margin-top:8px">Voir la bibliothèque d'astuces</button></div>`;
+  }
   function renderProg() {
     const est = estimate(), k = streakNow();
     const chapRows = ready().map(c => {
@@ -564,10 +798,16 @@
       </div>
       <div class="box"><p class="eyebrow">Par chapitre</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Chapitre</th><th class="num">Maîtrise</th><th class="num">Faites</th><th class="num">Temps</th></tr></thead><tbody>${chapRows}</tbody></table></div>
         <p class="sub small">Maîtrise sur les 15 dernières questions : juste en moins de 90 s = 1 point, juste mais lent = 0,6.</p></div>
+      ${recordsBox()}
+      ${weakBox()}
+      ${notionsBox()}
       <div class="box"><p class="eyebrow">Automatismes</p><table class="tbl"><tbody>${autoRows}</tbody></table></div>
       ${errBox()}
+      ${tipsBox()}
       <p class="sub small center">${plural(Object.keys(S.sr).length, 'notion')} suivie${Object.keys(S.sr).length > 1 ? 's' : ''}, ${dueNotions().length} à réviser aujourd'hui.</p>
       <div class="reset" id="p-reset"><button class="ghost-btn" id="p-reset-ask">Réinitialiser ma progression TAGE MAGE</button></div>`;
+    $('scr-prog').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
+    const tl = $('p-tips'); if (tl) tl.onclick = () => { chapTab = 'tips'; go('chap'); };
     $('p-reset-ask').onclick = () => {
       $('p-reset').innerHTML = '<span>Effacer la note, les statistiques, les révisions et la série ? Le calcul mental n\'est pas touché.</span><button class="ghost-btn danger" id="p-yes">Effacer</button><button class="ghost-btn" id="p-no">Annuler</button>';
       $('p-yes').onclick = () => { try { localStorage.removeItem(KEY); } catch {} location.reload(); };
@@ -580,6 +820,18 @@
     if (AM.view !== 'run' || e.ctrlKey || e.metaKey || e.altKey) return;
     const s = cur(); if (!s) return;
     if (e.key === 'Escape') { quit(); return; }
+    if (runRef === 'sprint' && !s.done) {
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); sprintKey(e.key); }
+      else if (e.key === ',' || e.key === '.') { e.preventDefault(); sprintKey(','); }
+      else if (e.key === 'Backspace') { e.preventDefault(); sprintKey('del'); }
+      else if (e.key === 'Enter') { e.preventDefault(); sprintKey('ok'); }
+      return;
+    }
+    if (runRef === 'exam' && !s.done) {
+      const k = 'abcde'.indexOf(e.key.toLowerCase()); if (k >= 0) { e.preventDefault(); const o = document.querySelectorAll('#r-opts .opt')[k]; if (o) o.click(); }
+      else if (e.key === 'ArrowRight') examGo(s, s.cur + 1); else if (e.key === 'ArrowLeft') examGo(s, s.cur - 1);
+      return;
+    }
     const btn = $('r-next') || $('r-go') || $('r-home');
     if (e.key === 'Enter' && btn) { e.preventDefault(); btn.click(); return; }
     if (s.done) return;

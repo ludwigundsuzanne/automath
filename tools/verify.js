@@ -70,7 +70,10 @@ const CHECKS = {
   },
   'pui.sci': (t, k) => { const [x, y] = nums(t); return close(num(k), x * y); },
   'pui.sys': (t, k) => { const [, b, m, , n] = t.match(/(\d+)\^(\d+).*?(\d+)\^(\d+)/).map(Number).concat([]); const base = +t.match(/C² = (\d+)\^/)[1], e1 = +t.match(/C² = \d+\^(\d+)/)[1], e2 = +t.match(/C = \d+\^(\d+)/)[1]; return num(k) * 3 === e1 + e2 && base > 0; },
-  'trav.two': (t, k) => true,
+  'ent.heads': (t, k) => { const [, T, P] = t.match(/: (\d+) \S+ et (\d+) /).map(Number), [a, b] = /tabourets/.test(t) ? [3, 4] : [2, 4], B = num(k); return Number.isInteger(B) && B >= 0 && B <= T && a * (T - B) + b * B === P; },
+  'ent.combos': (t, k) => { const [a, b, T] = nums(t); let c = 0; for (let x = 1; x * a < T; x++) for (let y = 1; x * a + y * b <= T; y++) c += x * a + y * b === T; return num(k) === c; },
+  'ent.remain': (t, k) => { const v = nums(t), [p, r1, q, r2, m] = v.slice(1), N = num(k); let c = 0; for (let x = 1; x < 100; x++) c += x % p === r1 && x % q === r2 && x % m === 0; return c === 1 && N % p === r1 && N % q === r2 && N % m === 0; },
+  'ent.digits': (t, k) => { const n = nums(t)[1]; let c = 0; for (let x = 1; x <= n; x++) c += String(x).length; return num(k) === c; },
   'salut.hand': (t, k) => { const n = nums(t)[0]; return num(k) === n * (n - 1) / 2; },
 };
 

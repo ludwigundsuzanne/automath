@@ -944,6 +944,55 @@
     e, [[m + n, 'methode', 'Tu as multiplié les égalités sans prendre la racine cubique.'], ...((m + n) % 2 ? [] : [[(m + n) / 2, 'calc', 'En multipliant, chaque lettre est au cube : (ABC)³, donc ÷ 3.']]), [m, 'inatt', 'C\'est l\'exposant de la première égalité seulement.']], { min: 1, dp: 0, fmt: v => sup(k, v) });
   });
 
+  // ===== Inconnues entières =====
+  def('ent.heads', 'ent', 1, 'Têtes et pattes', 'falsehyp', d => {
+    const [where, n1, n2, a, b, unitT, unitP] = pick([['Dans une ferme', 'poules', 'lapins', 2, 4, 'têtes', 'pattes'], ['Sur un parking', 'motos', 'voitures', 2, 4, 'véhicules', 'roues'], ['Dans une salle', 'tabourets à 3 pieds', 'chaises à 4 pieds', 3, 4, 'sièges', 'pieds']]);
+    const B = int(2, d === 1 ? 10 : 25), A = int(2, d === 1 ? 10 : 25), Tt = A + B, P = a * A + b * B;
+    return numQ({ text: `${where}, il y a des ${n1} et des ${n2} : ${Tt} ${unitT} et ${P} ${unitP} en tout. Combien y a-t-il de ${n2} ?`,
+      exp: E({ r: `<p>Si tout était des ${n1} : ${Tt} × ${a} = ${a * Tt} ${unitP}. Il en manque ${P - a * Tt}, et chaque ${n2.replace(/s( |$)/, '$1')} en apporte ${b - a} de plus : ${P - a * Tt} ÷ ${b - a} = ${B}.</p>`,
+        p: '<p>N\'oublie pas de diviser l\'écart par la différence entre les deux catégories.</p>', c: `<p>x + y = ${Tt} et ${a}x + ${b}y = ${P}.</p>` }) },
+    B, [[A, 'enonce', `C'est le nombre de ${n1}.`], [Math.round(P / b), 'methode', `Tu as tout divisé par ${b} : il y a aussi des ${n1}.`], [(P - a * Tt), 'calc', `Il faut encore diviser par ${b - a}.`]], { min: 1, dp: 0 });
+  });
+
+  def('ent.combos', 'ent', 2, 'Combien de possibilités ?', 'diophant', () => {
+    const [a, b] = pick([[2, 3], [3, 5], [2, 5], [4, 7], [3, 7], [5, 8], [3, 4]]);
+    let Tt, sols, sols0;
+    do {
+      Tt = int(20, 60); sols = []; sols0 = 0;
+      for (let y = 0; y * b <= Tt; y++) { const r = Tt - y * b; if (r % a === 0) { sols0++; if (y >= 1 && r >= a) sols.push([r / a, y]); } }
+    } while (sols.length < 2 || sols.length > 6);
+    return numQ({ text: `Des stylos coûtent ${a} € et des cahiers ${b} €. On dépense exactement ${Tt} € en achetant au moins un stylo et au moins un cahier. Combien de combinaisons sont possibles ?`,
+      exp: E({ r: `<p>Fais varier le nombre de cahiers (le plus cher) et garde les cas où le reste se divise par ${a} : ${sols.map(([x, y]) => `${y} cahier${y > 1 ? 's' : ''} + ${x} stylo${x > 1 ? 's' : ''}`).join(' ; ')}. Soit ${sols.length} combinaisons.</p>`,
+        p: '<p>« Au moins un de chaque » : exclus les cas avec 0 stylo ou 0 cahier.</p>' }) },
+    sols.length, [...(sols0 !== sols.length ? [[sols0, 'enonce', 'Tu as compté des cas avec 0 stylo ou 0 cahier.']] : []), [Math.floor(Tt / b), 'methode', 'Tous les nombres de cahiers ne laissent pas un reste divisible par ' + a + '.']], { min: 1, dp: 0 });
+  });
+
+  def('ent.remain', 'ent', 3, 'Restes de divisions', 'remainders', () => {
+    let N, p, q, m, r1, r2, ok;
+    do {
+      [p, q, m] = shuffle([3, 4, 5, 6, 7, 8, 9]).slice(0, 3); N = int(20, 99); r1 = N % p; r2 = N % q;
+      ok = N % m === 0 && r1 > 0 && r2 > 0;
+      if (ok) { let c = 0; for (let x = 1; x < 100; x++) c += x % p === r1 && x % q === r2 && x % m === 0; ok = c === 1; }
+    } while (!ok);
+    const cond = x => [x % p === r1, x % q === r2, x % m === 0];
+    const near = []; for (let x = 10; x < 100; x++) { const c = cond(x); if (x !== N && c.filter(Boolean).length === 2) near.push(x); }
+    const ds = shuffle(near).slice(0, 4).map(x => { const c = cond(x); const which = !c[0] ? `rangés par ${p}` : !c[1] ? `rangés par ${q}` : `rangés par ${m}`; return [x, 'inatt', `${x} ne vérifie pas la condition « ${which} ».`]; });
+    return numQ({ text: `Un groupe compte moins de 100 élèves. Rangés par ${p}, il en reste ${r1}. Rangés par ${q}, il en reste ${r2}. Rangés par ${m}, il n'en reste aucun. Combien d'élèves compte le groupe ?`,
+      exp: E({ r: `<p>Teste les réponses, condition par condition. ${N} = ${p} × ${Math.floor(N / p)} + ${r1} ✓ ; ${N} = ${q} × ${Math.floor(N / q)} + ${r2} ✓ ; ${N} = ${m} × ${N / m} ✓.</p>`,
+        p: '<p>Une réponse qui vérifie deux conditions sur trois est un piège : vérifie toujours les trois.</p>', c: `<p>Parcours les multiples de ${m} inférieurs à 100 et garde celui qui convient.</p>` }) },
+    N, ds, { min: 1, dp: 0 });
+  });
+
+  def('ent.digits', 'ent', 2, 'Compter des chiffres', 'digitcount', d => {
+    const Nn = d === 1 ? int(20, 99) : d === 2 ? int(120, 999) : int(1001, 1500);
+    const count = x => { let c = 0; for (let k = 1; k <= x; k++) c += String(k).length; return c; };
+    const ans = count(Nn), parts = [[1, 9, 1], [10, 99, 2], [100, 999, 3], [1000, 9999, 4]].filter(([a]) => a <= Nn).map(([a, b, l]) => [a, Math.min(b, Nn), l]);
+    return numQ({ text: `Combien de chiffres faut-il pour écrire tous les nombres de 1 à ${nf(Nn)} ?`,
+      exp: E({ r: `<p>${parts.map(([a, b, l]) => `de ${nf(a)} à ${nf(b)} : ${nf(b - a + 1)} nombres × ${l} = ${nf((b - a + 1) * l)}`).join(' ; ')}. Total : ${nf(ans)}.</p>`,
+        p: '<p>Compte les nombres de chaque tranche avec B − A + 1, et multiplie par leur nombre de chiffres.</p>' }) },
+    ans, [[Nn, 'methode', 'On compte des chiffres, pas des nombres.'], [Nn * String(Nn).length, 'methode', 'Les petits nombres ont moins de chiffres.'], [ans - parts[parts.length - 1][2], 'calc', 'Oubli du dernier nombre : de A à B il y a B − A + 1 nombres.']], { min: 1, dp: 0 });
+  });
+
   // ---------- Automatismes (pavé numérique) ----------
   const dec = (n, dp) => { const s = String(n).padStart(dp + 1, '0'); const i = s.slice(0, -dp), f = s.slice(-dp).replace(/0+$/, ''); return f ? i + ',' + f : i; };
   const AUTO = {
@@ -1032,6 +1081,9 @@
     { id: 'powrules', chap: 'pui', title: 'Règles des puissances', rule: 'aᵐ × aⁿ = aᵐ⁺ⁿ ; aᵐ ÷ aⁿ = aᵐ⁻ⁿ ; (aᵐ)ⁿ = aᵐˣⁿ ; aᵐ × bᵐ = (ab)ᵐ. À connaître : 2¹⁰ = 1 024, 3⁵ = 243, 5⁴ = 625.', ex: '2⁵ × 5⁵ = 10⁵' },
     { id: 'samepow', chap: 'pui', title: 'Comparer des puissances', rule: 'Ramène tout au même exposant (ou à la même base).', ex: '2³⁰ = 8¹⁰ < 3²⁰ = 9¹⁰' },
     { id: 'sqrtsimp', chap: 'pui', title: 'Simplifier une racine', rule: 'Sors le plus grand carré parfait : √(a² × b) = a√b. Et √a + √b ≠ √(a + b).', ex: '√50 = √(25 × 2) = 5√2' },
+    { id: 'diophant', chap: 'ent', title: 'Équations à solutions entières', rule: 'Fais varier l\'inconnue au plus gros coefficient et garde les cas où le reste tombe juste.', ex: '3x + 5y = 34 : y = 2 → x = 8 ; y = 5 → x = 3' },
+    { id: 'remainders', chap: 'ent', title: 'Restes de divisions', rule: 'Teste les réponses une condition après l\'autre, ou parcours les multiples de la condition « sans reste ».', ex: 'Reste 2 par 3, reste 4 par 5, multiple de 7 : 14 ✓' },
+    { id: 'digitcount', chap: 'ent', title: 'Compter des chiffres', rule: '1 à 9 : 9 chiffres ; 10 à 99 : 180 ; 100 à 999 : 2 700 ; puis 4 par nombre.', ex: 'De 1 à 1 253 : 9 + 180 + 2 700 + 254 × 4 = 3 905' },
     { id: 'pow10', chap: 'pui', title: 'Puissances de 10', rule: 'Multiplie les chiffres, puis compte zéros et décimales : 10ᵖ × 10ᵠ = 10ᵖ⁺ᵠ.', ex: '0,003 × 4 000 = 12' },
   ];
   const TIP = Object.fromEntries(TIPS.map(t => [t.id, t]));
@@ -1143,6 +1195,15 @@
       <h3 class="fx">Exemples résolus</h3>
       <div class="exres"><p><b>Un placement rapporte 180 € la 1re année et 185,40 € la 2e. Taux et somme placée ?</b></p><p>5,40 ÷ 180 = 3 %. Capital : 180 ÷ 0,03 = <b>6 000 €</b>.</p></div>
       <div class="exres"><p><b>1 200 € placés en partie à 3 %, le reste à 7 %. Total après un an : 1 250 €. Part à 7 % ?</b></p><p>Tout à 3 % : 1 236 €. Écart 14 € ÷ 4 % = <b>350 €</b>.</p></div>`,
+    ent: `<ul>
+      <li>Des personnes, des objets, des âges sont des <b>nombres entiers</b> : ça permet de lister les possibilités au lieu de résoudre.</li>
+      <li>Têtes et pattes, pièces de deux valeurs : <b>fausse hypothèse</b> (tout dans la petite catégorie, puis répartis l'écart).</li>
+      <li>Équation du type ax + by = T : fais varier l'inconnue au plus gros coefficient, garde les cas entiers.</li>
+      <li>Restes de divisions : teste les réponses une condition après l'autre.</li>
+      <li>Compter des chiffres : 9 (1 à 9), 180 (10 à 99), 2 700 (100 à 999). Entiers de A à B : B − A + 1.</li></ul>
+      <h3 class="fx">Exemples résolus</h3>
+      <div class="exres"><p><b>Le produit de deux entiers vaut 96 et leur différence 20. Que vaut leur somme ?</b></p><p>Couples de produit 96 : (1 ; 96), (2 ; 48), (3 ; 32), (4 ; 24)… seul (4 ; 24) a un écart de 20. Somme : <b>28</b>.</p></div>
+      <div class="exres"><p><b>Combien de chiffres pour écrire les nombres de 1 à 1 253 ?</b></p><p>9 + 180 + 2 700 + (1 253 − 1 000 + 1) × 4 = <b>3 905</b>.</p></div>`,
     pui: `<ul>
       <li>aᵐ × aⁿ = aᵐ⁺ⁿ ; aᵐ ÷ aⁿ = aᵐ⁻ⁿ ; (aᵐ)ⁿ = aᵐˣⁿ ; aᵐ × bᵐ = (ab)ᵐ ; a⁰ = 1.</li>
       <li>Comparer : ramène au <b>même exposant</b> (2³⁰ = 8¹⁰) ou à la même base.</li>

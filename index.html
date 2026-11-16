@@ -40,9 +40,10 @@
   <header class="top">
     <div class="brand-row">
       <button class="icon-btn" id="m-back" aria-label="Retour à S'entraîner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <h2 class="mental-title">Calcul mental</h2>
+      <h2 class="vh">Calcul mental</h2>
       <div class="topic" role="group" aria-label="Thème">
         <button id="topic-sq" data-topic="sq" aria-pressed="true">Carrés</button>
+        <button id="topic-cu" data-topic="cu" aria-pressed="false">Cubes</button>
         <button id="topic-tb" data-topic="tb" aria-pressed="false">Tables</button>
       </div>
     </div>
@@ -125,7 +126,7 @@
     <p class="rnote" id="rnote" hidden>Touche une case pour voir l'astuce. La couleur indique ta maîtrise : rouge = raté récemment, bleu foncé = sûr et rapide.</p>
 
     <div class="tricks" id="tricks-sq">
-      <h2>Trois astuces</h2>
+      <h2>Quatre astuces</h2>
       <div class="trick">
         <h3>De 11 à 19 : 100 + 20u + u²</h3>
         <p>Écris le nombre comme 10 + u. Exemple : <code>14² = 100 + 80 + 16 = 196</code>. Sur le dessin, c'est le bloc 10×10, les deux bandes de 10×u et le petit coin u×u.</p>
@@ -137,6 +138,26 @@
       <div class="trick">
         <h3>Passer au suivant : + n + (n+1)</h3>
         <p>Si tu connais 16² = 256, alors <code>17² = 256 + 16 + 17 = 289</code>. Pratique pour retrouver un carré oublié à partir d'un voisin.</p>
+      </div>
+      <div class="trick">
+        <h3>De 21 à 25 : 400 + 40u + u²</h3>
+        <p>Écris le nombre comme 20 + u. Exemple : <code>23² = 400 + 120 + 9 = 529</code>. Et 25² = 625 (2 × 3 = 6, puis 25).</p>
+      </div>
+    </div>
+
+    <div class="tricks" id="tricks-cu" hidden>
+      <h2>Trois astuces</h2>
+      <div class="trick">
+        <h3>Le cube, c'est le carré fois le nombre</h3>
+        <p>Pars du carré que tu connais : <code>13³ = 169 × 13 = 1 690 + 507 = 2 197</code>.</p>
+      </div>
+      <div class="trick">
+        <h3>Les repères : 10³ et 20³</h3>
+        <p><code>10³ = 1 000</code> et <code>20³ = 8 000</code> (2³ = 8, puis trois zéros). De 11 à 19, le cube est entre les deux.</p>
+      </div>
+      <div class="trick">
+        <h3>Le dernier chiffre trahit le nombre</h3>
+        <p>Les cubes de 0 à 9 finissent tous par un chiffre différent : 1→1, 2→8, 3→7, 4→4, 5→5, 6→6, 7→3, 8→2, 9→9. Pratique pour reconnaître une racine cubique : <code>2 744</code> finit par 4, c'est 14³.</p>
       </div>
     </div>
 

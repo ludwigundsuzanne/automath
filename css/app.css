@@ -365,3 +365,9 @@ body.focus { padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
 .flash-acts.acts button { height: 56px; font-size: 16px; }
 .seg3 { grid-template-columns: repeat(3, 1fr); }
 .seg3 button { min-height: 44px; font-size: 14px; }
+
+/* Calcul mental : trois thèmes à côté du bouton retour */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#scr-mental .topic { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); }
+#scr-mental .topic button { min-height: 36px; padding: 6px 4px; }
+.sq .v { font-size: 20px; }

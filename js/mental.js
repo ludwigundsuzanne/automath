@@ -1,4 +1,4 @@
-// Calcul mental : carrés de 1 à 20 et tables de 2 à 9 (onglet « Mental »).
+// Calcul mental : carrés de 1 à 25, cubes de 1 à 20 et tables de 2 à 9 (onglet « Mental »).
 (() => {
   const $ = id => document.getElementById(id);
   const KEY = 'carres.v1';
@@ -10,13 +10,14 @@
   }
   const saved = load();
   const state = {
-    topic: saved.topic === 'tb' ? 'tb' : 'sq',
+    topic: ['tb', 'cu'].includes(saved.topic) ? saved.topic : 'sq',
     tsel: Array.isArray(saved.tsel) && saved.tsel.length ? saved.tsel : [2, 3, 4, 5, 6, 7, 8, 9],
     daily: saved.daily || { day: '', fast: 0 },          // bonnes réponses rapides du jour
     streak: saved.streak || { count: 0, last: '', best: 0 }, // last = dernier jour où l'objectif a été atteint
     // ancienne version : stats/best/last à la racine = carrés
     sq: saved.sq || { stats: saved.stats || {}, best: saved.best || 0, last: saved.last ?? null },
     tb: saved.tb || { stats: {}, best: 0, last: null },
+    cu: saved.cu || { stats: {}, best: 0, last: null },
   };
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
@@ -26,7 +27,7 @@
   const lvl = item => { const b = st(item).box; return b < 0 ? '' : 'l' + b; };
 
   // ---------- Dessin : un rectangle de rows × cols carreaux ----------
-  // mode 'sq' : découpe 10 / u des carrés ; un nombre : sépare les colonnes à cet indice
+  // mode 'sq' : découpe 10 / u des carrés (20 / u au-delà de 20) ; un nombre : sépare les colonnes à cet indice
   function vizEl(rows, cols, mode, label) {
     const g = document.createElement('div');
     g.className = 'viz';
@@ -34,10 +35,10 @@
     g.style.setProperty('--rows', rows);
     g.setAttribute('role', 'img');
     g.setAttribute('aria-label', label);
-    const frag = document.createDocumentFragment();
+    const frag = document.createDocumentFragment(), base = rows > 20 ? 20 : 10;
     for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
       const c = document.createElement('span');
-      if (mode === 'sq') c.className = (i < 10 && j < 10) ? 'a' : (i >= 10 && j >= 10) ? 'c' : 'b';
+      if (mode === 'sq') c.className = (i < base && j < base) ? 'a' : (i >= base && j >= base) ? 'c' : 'b';
       else if (typeof mode === 'number') c.className = j < mode ? 'a' : 'b';
       else c.className = 'a';
       frag.appendChild(c);
@@ -47,10 +48,17 @@
   }
 
   // ---------- Thème : carrés ----------
-  const SQ_ITEMS = Array.from({ length: 20 }, (_, i) => String(i + 1));
+  const SQ_ITEMS = Array.from({ length: 25 }, (_, i) => String(i + 1));
   function sqTip(n) {
     const sq = n * n;
     if (n === 20) return `<p>2 × 2 = 4, puis on ajoute deux zéros.</p><span class="calc">20² = 400</span>`;
+    if (n === 25) return `<p>Finit par 5 : 2 × 3 = 6, puis on colle 25.</p><span class="calc">25² = 625</span>`;
+    if (n > 20) {
+      const u = n - 20;
+      return `<p>${n} = 20 + ${u}, donc 400 + 2 × 20 × ${u} + ${u}².</p>
+        <span class="calc">400 + ${40 * u} + ${u * u} = ${sq}</span>
+        <div class="legend"><span><i class="c-a"></i>20×20 = 400</span><span><i class="c-b"></i>2 bandes de 20×${u} = ${40 * u}</span><span><i class="c-c"></i>${u}×${u} = ${u * u}</span></div>`;
+    }
     if (n === 15) return `<p>Finit par 5 : 1 × 2 = 2, puis on colle 25.</p><span class="calc">15² = 225</span>`;
     if (n === 5) return `<p>Finit par 5 : 0 × 1 = 0, puis on colle 25.</p><span class="calc">5² = 25</span>`;
     if (n > 10) {
@@ -70,6 +78,27 @@
     explain(it) {
       const n = +it;
       return { title: `${n}² = ${n * n}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Un carré de ${n} sur ${n} carreaux`), tip: sqTip(n) };
+    },
+  };
+
+  // ---------- Thème : cubes de 1 à 20 ----------
+  const CU_ITEMS = Array.from({ length: 20 }, (_, i) => String(i + 1));
+  const sp = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  function cuTip(n) {
+    const s = n * n, c = s * n;
+    if (n === 1) return `<p>1 × 1 × 1.</p><span class="calc">1³ = 1</span>`;
+    if (n === 10 || n === 20) return `<p>${n / 10}³ = ${(n / 10) ** 3}, puis on ajoute trois zéros.</p><span class="calc">${n}³ = ${sp(c)}</span>`;
+    if (n < 10) return `<p>Le carré, fois ${n} : ${n}² = ${s}.</p><span class="calc">${s} × ${n} = ${sp(c)}</span>`;
+    const u = n - 10;
+    return `<p>Le carré, fois ${n} : ${n}² = ${s}, puis ${s} × 10 + ${s} × ${u}.</p>
+      <span class="calc">${sp(s * 10)} + ${sp(s * u)} = ${sp(c)}</span>`;
+  }
+  const CU = {
+    noun: 'cubes', fast: 5000, items: () => CU_ITEMS, all: CU_ITEMS,
+    question(it) { const n = +it; return { html: `<span>${n}</span><sup>3</sup>`, text: `${n}³`, answer: n ** 3 }; },
+    explain(it) {
+      const n = +it;
+      return { title: `${n}³ = ${sp(n ** 3)}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Une face de ${n} sur ${n}, empilée ${n} fois`), tip: cuTip(n) };
     },
   };
 
@@ -114,7 +143,9 @@
       };
     },
   };
-  const TOPICS = { sq: SQ, tb: TB };
+  const TOPICS = { sq: SQ, cu: CU, tb: TB };
+  const NAMES = { sq: 'carrés', cu: 'cubes', tb: 'tables' };
+  const isList = () => state.topic !== 'tb'; // carrés et cubes : une case par nombre
   const T = () => TOPICS[state.topic];
 
   // ---------- Progression ----------
@@ -199,10 +230,10 @@
   let currentTrain = null;
   function renderMastery() {
     const m = $('mastery');
-    if (state.topic === 'sq') {
+    if (isList()) {
       m.className = 'mastery';
-      m.innerHTML = SQ_ITEMS.map(it =>
-        `<div class="tile lv ${lvl(it)} ${it === currentTrain ? 'now' : ''}" title="${it}² = ${it * it}">${it}</div>`).join('');
+      m.innerHTML = T().all.map(it => { const q = T().question(it);
+        return `<div class="tile lv ${lvl(it)} ${it === currentTrain ? 'now' : ''}" title="${q.text} = ${q.answer}">${it}</div>`; }).join('');
     } else {
       m.className = 'tgrid';
       let h = '<span></span>';
@@ -271,7 +302,7 @@
       if (this.onShow) this.onShow(this.item);
     };
     this.digit = d => {
-      if (this.locked || this.buf.length >= 3) return;
+      if (this.locked || this.buf.length >= 4) return;
       if (this.buf === '' && d === '0') return;
       this.buf += d; ans.textContent = this.buf;
       if (this.buf.length === String(this.shown.answer).length) this.submit();
@@ -405,7 +436,7 @@
   $('c-again').addEventListener('click', startChrono);
 
   // ---------- Révision ----------
-  const selected = { sq: '17', tb: '7x8' };
+  const selected = { sq: '17', cu: '12', tb: '7x8' };
   function renderDetail() {
     const d = $('detail');
     const e = T().explain(selected[state.topic]);
@@ -417,17 +448,18 @@
     d.appendChild(t);
   }
   function renderRev() {
-    const isSq = state.topic === 'sq';
+    const isSq = isList();
     const s = state.streak;
     $('rstats').innerHTML = `Maîtrisés : <b>${T().all.filter(it => st(it).box >= 4).length}/${T().all.length}</b>`
       + ` · Record de série : <b>${s.best}</b> jour${s.best > 1 ? 's' : ''}`;
-    $('sq-list').hidden = !isSq; $('tricks-sq').hidden = !isSq;
-    $('tb-rev').hidden = isSq; $('tricks-tb').hidden = isSq; $('rnote').hidden = isSq;
+    $('sq-list').hidden = !isSq;
+    for (const t of ['sq', 'cu', 'tb']) $('tricks-' + t).hidden = t !== state.topic;
+    $('tb-rev').hidden = isSq; $('rnote').hidden = isSq;
     if (isSq) {
-      $('sq-list').innerHTML = SQ_ITEMS.map(it =>
-        `<button class="sq" data-it="${it}" aria-pressed="${it === selected.sq}">
-          <span class="dot ${lvl(it)}"></span><span class="n">${it}²</span><span class="v">${it * it}</span>
-        </button>`).join('');
+      $('sq-list').innerHTML = T().all.map(it => { const q = T().question(it);
+        return `<button class="sq" data-it="${it}" aria-pressed="${it === selected[state.topic]}">
+          <span class="dot ${lvl(it)}"></span><span class="n">${q.text}</span><span class="v">${sp(q.answer)}</span>
+        </button>`; }).join('');
     } else {
       let h = '<span class="th">×</span>';
       for (let c = 2; c <= 9; c++) h += `<span class="th">${c}</span>`;
@@ -451,11 +483,11 @@
   $('rtable').addEventListener('click', onRevClick);
 
   function resetBar() {
-    $('reset').innerHTML = `<button class="ghost-btn" id="reset-ask">Réinitialiser la progression des ${state.topic === 'sq' ? 'carrés' : 'tables'}</button>`;
+    $('reset').innerHTML = `<button class="ghost-btn" id="reset-ask">Réinitialiser la progression des ${NAMES[state.topic]}</button>`;
     $('reset-ask').onclick = resetAsk;
   }
   function resetAsk() {
-    $('reset').innerHTML = `<span>Effacer la progression et le record des ${state.topic === 'sq' ? 'carrés' : 'tables'} ?</span>
+    $('reset').innerHTML = `<span>Effacer la progression et le record des ${NAMES[state.topic]} ?</span>
       <button class="ghost-btn danger" id="reset-yes">Effacer</button>
       <button class="ghost-btn" id="reset-no">Annuler</button>`;
     $('reset-yes').onclick = () => {

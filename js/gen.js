@@ -997,7 +997,7 @@
   const dec = (n, dp) => { const s = String(n).padStart(dp + 1, '0'); const i = s.slice(0, -dp), f = s.slice(-dp).replace(/0+$/, ''); return f ? i + ',' + f : i; };
   const AUTO = {
     sq: { label: 'Carrés de 11 à 25', fast: 4000, tip: 'sqnear', f() { const n = int(11, 25); return { text: `${n}²`, a: String(n * n) }; } },
-    cube: { label: 'Cubes de 2 à 10', fast: 4000, tip: null, f() { const n = int(2, 10); return { text: `${n}³`, a: String(n ** 3) }; } },
+    cube: { label: 'Cubes de 2 à 20', fast: 5000, tip: null, f() { const n = Math.random() < 0.7 ? int(2, 12) : int(13, 20); return { text: `${n}³`, a: String(n ** 3) }; } },
     tab: { label: 'Tables de 11 à 19', fast: 5000, tip: null, f() { const a = int(11, 19), b = int(3, 9); return { text: `${a} × ${b}`, a: String(a * b) }; } },
     dec: { label: 'Décimaux', fast: 8000, tip: 'dec', f() {
       const v = int(0, 3);

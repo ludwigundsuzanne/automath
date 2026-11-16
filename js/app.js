@@ -213,7 +213,7 @@
 
   // ---------- Navigation ----------
   window.AM = { view: 'home' };
-  const SCREENS = ['home', 'chap', 'chapter', 'tips', 'mental', 'prog', 'fiche', 'run'];
+  const SCREENS = ['home', 'chap', 'chapter', 'refl', 'tips', 'mental', 'prog', 'fiche', 'run'];
   let runRef = null;
   const cur = () => S[runRef];
   function go(v, navAs) {
@@ -225,13 +225,13 @@
     const focus = v === 'run' || v === 'mental'; // pas de barre d'onglets pendant les exercices
     $('hdr').hidden = focus;
     document.body.classList.toggle('focus', focus);
-    const tab = navAs || (v === 'mental' || v === 'fiche' || v === 'chapter' ? 'chap' : v);
+    const tab = navAs || ({ mental: 'refl', tips: 'refl', fiche: 'chap', chapter: 'chap' }[v] || v);
     document.querySelectorAll('.tabbar [data-go]').forEach(b => { if (b.dataset.go === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    if (v === 'home') renderHome(); else if (v === 'chap') renderChap(); else if (v === 'chapter') renderChapter(); else if (v === 'tips') renderTipsScreen(); else if (v === 'prog') renderProg(); else if (v === 'run') renderRun();
+    if (v === 'home') renderHome(); else if (v === 'chap') renderChap(); else if (v === 'chapter') renderChapter(); else if (v === 'refl') renderRefl(); else if (v === 'tips') renderTipsScreen(); else if (v === 'prog') renderProg(); else if (v === 'run') renderRun();
     window.scrollTo(0, 0);
   }
   document.querySelector('.tabbar').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
-  $('m-back').onclick = () => go('chap');
+  $('m-back').onclick = () => go('refl');
   // petite vibration à la réponse (Android) : courte si juste, double si faux
   const buzz = ok => { try { if (navigator.vibrate) navigator.vibrate(ok ? 12 : [30, 50, 30]); } catch {} };
   const MARK = '<svg class="mark" viewBox="0 0 256 256" aria-hidden="true"><path class="tile" d="M57.6 0H198.4A57.6 57.6 0 0 1 256 57.6V198.4A57.6 57.6 0 0 1 198.4 256H57.6A57.6 57.6 0 0 1 0 198.4V57.6A57.6 57.6 0 0 1 57.6 0Z"/><path class="glyph" d="M128 48A80 80 0 1 0 172 194.81V205H208V51H172V128A44 44 0 1 1 128 84Z"/></svg>';
@@ -292,7 +292,7 @@
   function quit() {
     stopClock();
     if (runRef === 'sprint') S.sprint = null; // un sprint interrompu ne compte pas
-    go(runRef === 'prac' ? (S.prac && S.prac.from) || 'chap' : runRef === 'session' ? 'home' : runRef === 'exam' || runRef === 'sprint' ? 'chap' : 'home');
+    go(runRef === 'prac' ? (S.prac && S.prac.from) || 'chap' : runRef === 'session' ? 'home' : runRef === 'exam' ? 'chap' : runRef === 'sprint' ? 'refl' : 'home');
   }
 
   function topBar(s, sub) {
@@ -760,8 +760,7 @@
     const ex = S.exam && !S.exam.done ? S.exam : null, exLeft = ex ? examLeft(ex) : 0, bestExam = S.exams.length ? Math.max(...S.exams.map(x => x.score)) : null;
     return `<div class="modes">
       <button class="mode primary" id="m-exam"><b>${ex ? (exLeft > 0 ? 'Reprendre l\'épreuve blanche' : 'Épreuve terminée : voir le résultat') : 'Épreuve blanche'}</b><span>${ex && exLeft > 0 ? `${mmss(exLeft)} restantes` : `15 questions · 20 min · comme le jour J${bestExam !== null ? ` · record ${bestExam}/60` : ''}`}</span></button>
-      <button class="mode" id="m-sprint"><b>Sprint automatismes</b><span>3 min chrono${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button>
-      <button class="mode" id="m-mental"><b>Calcul mental</b><span>Carrés et tables</span></button></div>`;
+</div>`;
   }
   const FREQ = ['', 'Rare', 'Peu fréquent', 'Assez fréquent', 'Fréquent', 'Très fréquent'];
   const chapStatus = c => {
@@ -770,16 +769,14 @@
   };
   function renderChap() {
     const el = $('scr-chap'), later = G.CHAPTERS.filter(c => !c.ready);
-    el.innerHTML = `<div><h2 class="t">S'entraîner</h2></div>${modesHtml()}
-      <p class="eyebrow tip-group">Chapitres</p><div class="chlist">` + ready().map(c => {
+    el.innerHTML = `<div><h2 class="t">Chapitres</h2></div>${modesHtml()}
+      <div class="chlist">` + ready().map(c => {
       const st = chapStatus(c);
       return `<button class="row-link chrow" data-chap="${c.id}"><span class="rl-t">${c.name}</span>
         <span class="rl-s">${FREQ[c.freq]} · ${st.text}</span>
         <span class="mbar" aria-hidden="true"><span style="width:${Math.round((st.m ?? 0) * 100)}%"></span></span>${ICON.chev}</button>`;
     }).join('') + `</div>${later.length ? `<p class="sub small later">Pour le passage de mars : ${later.map(c => c.name).join(', ')}</p>` : ''}`;
     $('m-exam').onclick = startExam;
-    $('m-sprint').onclick = startSprint;
-    $('m-mental').onclick = () => go('mental');
     el.querySelectorAll('[data-chap]').forEach(b => { b.onclick = () => openChapter(b.dataset.chap); });
   }
   // page d'un chapitre : fiche, entraînement, notions une par une, astuces
@@ -794,7 +791,7 @@
       const info = last.length ? `${Math.round(100 * last.filter(r => r[0]).length / last.length)} % de réussite · ${Math.round(avg(last.map(r => r[1])))} s en moyenne` : 'Jamais travaillée';
       return `<button class="nrow" data-focus="${t}"><span class="nrow-t"><b>${G.TYPES[t].label}</b><small>${info}</small></span><span class="pill ${k}">${l}</span>${ICON.chev}</button>`;
     }).join('');
-    $('scr-chapter').innerHTML = `<button class="ghost-btn back-btn" id="c-back">${ICON.back}S'entraîner</button>
+    $('scr-chapter').innerHTML = `<button class="ghost-btn back-btn" id="c-back">${ICON.back}Chapitres</button>
       <div class="box chead"><p class="rl-k">${FREQ[c.freq]} au TAGE MAGE · fiches ${c.fiches}</p><h2 class="t">${c.name}</h2>
         <div class="mbar"><div style="width:${Math.round((st.m ?? 0) * 100)}%"></div></div><p class="sub small">${st.text}</p>
         <button class="big-btn" id="c-prac">S'entraîner · 10 questions</button></div>
@@ -806,11 +803,27 @@
     $('c-fiche').onclick = () => openFiche(c.id);
     $('scr-chapter').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
   }
+  // ---------- Réflexes : le par-cœur (carrés, cubes, tables, alphabet), le sprint et les astuces ----------
+  const REFL = [['sq', 'Carrés', 'de 1 à 25'], ['cu', 'Cubes', 'de 1 à 20'], ['tb', 'Tables', 'de 2 à 9'], ['ab', 'Alphabet', 'A = 1 … Z = 26']];
+  function renderRefl() {
+    const sum = window.AMmental ? window.AMmental.summary() : {}, good = G.TIPS.filter(t => tipStatus(t)[0] === 'good').length;
+    $('scr-refl').innerHTML = `<div><h2 class="t">Réflexes</h2><p class="sub">Le par-cœur qui fait gagner des secondes à chaque question.</p></div>
+      <button class="mode primary" id="x-sprint"><b>Sprint mélangé</b><span>3 min chrono · tous les automatismes${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button>
+      <div class="rgrid">${REFL.map(([id, name, sub]) => {
+        const s = sum[id] || { ok: 0, total: 1 }, p = Math.round(100 * s.ok / s.total);
+        return `<button class="rcard" data-refl="${id}"><b>${name}</b><span>${sub}</span><span class="mbar" aria-hidden="true"><span style="width:${p}%"></span></span><small>${s.ok}/${s.total} sus par cœur</small></button>`;
+      }).join('')}</div>
+      <button class="row-link" id="x-tips"><span class="rl-t">Astuces</span><span class="rl-s">${good} maîtrisée${good > 1 ? 's' : ''} sur ${G.TIPS.length} · à lire ou à réviser en cartes</span>${ICON.chev}</button>`;
+    $('x-sprint').onclick = startSprint;
+    $('x-tips').onclick = () => go('tips');
+    $('scr-refl').querySelectorAll('[data-refl]').forEach(b => { b.onclick = () => { window.AMmental.open(b.dataset.refl); go('mental'); }; });
+  }
   function renderTipsScreen() {
     const el = $('scr-tips');
     tipRev = null;
-    el.innerHTML = '<div><h2 class="t">Astuces</h2></div>';
+    el.innerHTML = `<button class="ghost-btn back-btn" id="tp-back">${ICON.back}Réflexes</button><div><h2 class="t">Astuces</h2></div>`;
     renderTips(el);
+    $('tp-back').onclick = () => go('refl');
   }
   function openFiche(id) {
     const c = chapOf(id);

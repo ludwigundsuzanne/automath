@@ -1,4 +1,4 @@
-// Calcul mental : carrés de 1 à 25, cubes de 1 à 20 et tables de 2 à 9 (onglet « Mental »).
+// Réflexes : carrés de 1 à 25, cubes de 1 à 20, tables de 2 à 9 et rangs de l'alphabet.
 (() => {
   const $ = id => document.getElementById(id);
   const KEY = 'carres.v1';
@@ -10,7 +10,7 @@
   }
   const saved = load();
   const state = {
-    topic: ['tb', 'cu'].includes(saved.topic) ? saved.topic : 'sq',
+    topic: ['tb', 'cu', 'ab'].includes(saved.topic) ? saved.topic : 'sq',
     tsel: Array.isArray(saved.tsel) && saved.tsel.length ? saved.tsel : [2, 3, 4, 5, 6, 7, 8, 9],
     daily: saved.daily || { day: '', fast: 0 },          // bonnes réponses rapides du jour
     streak: saved.streak || { count: 0, last: '', best: 0 }, // last = dernier jour où l'objectif a été atteint
@@ -18,6 +18,7 @@
     sq: saved.sq || { stats: saved.stats || {}, best: saved.best || 0, last: saved.last ?? null },
     tb: saved.tb || { stats: {}, best: 0, last: null },
     cu: saved.cu || { stats: {}, best: 0, last: null },
+    ab: saved.ab || { stats: {}, best: 0, last: null },
   };
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
@@ -73,7 +74,7 @@
       <span class="calc">${p * p} + ${p} + ${n} = ${sq}</span>`;
   }
   const SQ = {
-    noun: 'carrés', fast: 4000, items: () => SQ_ITEMS, all: SQ_ITEMS,
+    noun: 'carrés', fast: 4000, items: () => SQ_ITEMS, all: SQ_ITEMS, card: it => ({ n: `${it}²`, v: sp(it * it) }),
     question(it) { const n = +it; return { html: `<span>${n}</span><sup>2</sup>`, text: `${n}²`, answer: n * n }; },
     explain(it) {
       const n = +it;
@@ -94,12 +95,38 @@
       <span class="calc">${sp(s * 10)} + ${sp(s * u)} = ${sp(c)}</span>`;
   }
   const CU = {
-    noun: 'cubes', fast: 5000, items: () => CU_ITEMS, all: CU_ITEMS,
+    noun: 'cubes', fast: 5000, items: () => CU_ITEMS, all: CU_ITEMS, card: it => ({ n: `${it}³`, v: sp(it ** 3) }),
     question(it) { const n = +it; return { html: `<span>${n}</span><sup>3</sup>`, text: `${n}³`, answer: n ** 3 }; },
     explain(it) {
       const n = +it;
       return { title: `${n}³ = ${sp(n ** 3)}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Une face de ${n} sur ${n}, empilée ${n} fois`), tip: cuTip(n) };
     },
+  };
+
+  // ---------- Thème : rangs de l'alphabet (A = 1 … Z = 26), dans les deux sens ----------
+  const AB_ITEMS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const rank = L => L.charCodeAt(0) - 64;
+  function abViz(L) {
+    const g = document.createElement('div');
+    g.className = 'abviz';
+    g.setAttribute('role', 'img');
+    g.setAttribute('aria-label', `${L} est la lettre numéro ${rank(L)}`);
+    g.innerHTML = AB_ITEMS.map(x => `<span class="${x === L ? 'on' : rank(x) % 5 === 0 ? 'mk' : ''}"><b>${x}</b><i>${rank(x)}</i></span>`).join('');
+    return g;
+  }
+  function abTip(L) {
+    const r = rank(L);
+    if (r % 5 === 0) return `<p>C'est un repère : E, J, O, T, Y valent 5, 10, 15, 20, 25.</p><span class="calc">${L} = ${r}</span>`;
+    const m = Math.min(25, Math.max(5, Math.round(r / 5) * 5)), d = r - m, s = d > 0 ? '+' : '−';
+    return `<p>Pars du repère le plus proche (E J O T Y = 5 10 15 20 25).</p><span class="calc">${L} = ${AB_ITEMS[m - 1]} ${s} ${Math.abs(d)} = ${m} ${s} ${Math.abs(d)} = ${r}</span>`;
+  }
+  const AB = {
+    noun: 'lettres', fast: 2500, items: () => AB_ITEMS, all: AB_ITEMS, card: it => ({ n: it, v: rank(it) }),
+    question(it) {
+      if (Math.random() < 0.5) return { html: `<span>${it}</span>`, text: it, answer: rank(it) };
+      return { html: `<span>${rank(it)}</span>`, text: `Lettre n° ${rank(it)}`, answer: it, letter: true };
+    },
+    explain(it) { return { title: `${it} = ${rank(it)}`, viz: abViz(it), tip: abTip(it) }; },
   };
 
   // ---------- Thème : tables de 2 à 9 ----------
@@ -143,9 +170,10 @@
       };
     },
   };
-  const TOPICS = { sq: SQ, cu: CU, tb: TB };
-  const NAMES = { sq: 'carrés', cu: 'cubes', tb: 'tables' };
-  const isList = () => state.topic !== 'tb'; // carrés et cubes : une case par nombre
+  const TOPICS = { sq: SQ, cu: CU, tb: TB, ab: AB };
+  const NAMES = { sq: 'carrés', cu: 'cubes', tb: 'tables', ab: 'lettres' };
+  const TITLES = { sq: 'Carrés', cu: 'Cubes', tb: 'Tables', ab: 'Alphabet' };
+  const isList = () => state.topic !== 'tb'; // carrés, cubes, alphabet : une case par élément
   const T = () => TOPICS[state.topic];
 
   // ---------- Progression ----------
@@ -160,57 +188,11 @@
     } else {
       s.box = 0;
     }
-    dayJustDone = false;
-    if (ok && ms < T().fast) {
-      rollDay();
-      state.daily.fast++;
-      if (state.daily.fast === GOAL) completeDay();
-    }
     save();
     renderMastery();
     renderRev();
-    renderDaily();
   }
 
-  // ---------- Série du jour ----------
-  const GOAL = 30;
-  let dayJustDone = false;
-  const dayKey = (offset = 0) => {
-    const d = new Date(); d.setDate(d.getDate() + offset);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-  function rollDay() {
-    if (state.daily.day !== dayKey()) state.daily = { day: dayKey(), fast: 0 };
-  }
-  // la série reste vivante tant que l'objectif a été atteint aujourd'hui ou hier
-  function streakNow() {
-    const s = state.streak;
-    return s.last === dayKey() || s.last === dayKey(-1) ? s.count : 0;
-  }
-  function completeDay() {
-    const s = state.streak;
-    if (s.last === dayKey()) return;
-    s.count = s.last === dayKey(-1) ? s.count + 1 : 1;
-    s.last = dayKey();
-    s.best = Math.max(s.best, s.count);
-    dayJustDone = true;
-    $('daily').classList.remove('pop'); void $('daily').offsetWidth; $('daily').classList.add('pop');
-  }
-  function renderDaily() {
-    rollDay();
-    const n = state.daily.fast, k = streakNow(), done = n >= GOAL;
-    const el = $('daily');
-    el.classList.toggle('done', done);
-    el.classList.toggle('on', k > 0);
-    $('d-streak').textContent = k;
-    $('d-fill').style.width = Math.min(100, 100 * n / GOAL) + '%';
-    $('d-count').textContent = done ? `${n}/${GOAL} ✓` : `${n}/${GOAL}`;
-    el.title = done
-      ? `Série du jour validée. ${k} jour${k > 1 ? 's' : ''} d'affilée.`
-      : `Objectif du jour : ${GOAL} bonnes réponses rapides. ${k ? `Valide-le pour passer à ${k + 1} jours d'affilée.` : ''}`;
-    el.setAttribute('aria-label', `${k} jours d'affilée. Série du jour : ${n} sur ${GOAL}.`);
-  }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) renderDaily(); });
 
   const WEIGHT = { '-1': 6, 0: 10, 1: 6, 2: 4, 3: 2.5, 4: 1.2, 5: 0.6 };
   let retry = null; // un calcul raté revient 3 questions plus tard
@@ -232,8 +214,8 @@
     const m = $('mastery');
     if (isList()) {
       m.className = 'mastery';
-      m.innerHTML = T().all.map(it => { const q = T().question(it);
-        return `<div class="tile lv ${lvl(it)} ${it === currentTrain ? 'now' : ''}" title="${q.text} = ${q.answer}">${it}</div>`; }).join('');
+      m.innerHTML = T().all.map(it => { const c = T().card(it);
+        return `<div class="tile lv ${lvl(it)} ${it === currentTrain ? 'now' : ''}" title="${c.n} = ${c.v}">${it}</div>`; }).join('');
     } else {
       m.className = 'tgrid';
       let h = '<span></span>';
@@ -289,32 +271,42 @@
     });
   }
 
-  function Quiz({ q, ans, card, onResult }) {
+  function makeLetterPad(el, quiz) {
+    el.innerHTML = AB_ITEMS.map(L => `<button data-l="${L}">${L}</button>`).join('');
+    el.addEventListener('click', e => { const b = e.target.closest('button'); if (b) quiz.letter(b.dataset.l); });
+  }
+
+  function Quiz({ q, ans, card, pad, lpad, onResult }) {
     this.item = null; this.shown = null; this.buf = ''; this.locked = false; this.t0 = 0;
+    this.syncPad = () => { const l = !!(this.shown && this.shown.letter); pad.hidden = l; lpad.hidden = !l; };
+    this.hidePads = () => { pad.hidden = true; lpad.hidden = true; };
     this.next = () => {
       this.item = pick(this.item);
       this.shown = T().question(this.item);
       this.buf = ''; this.locked = false;
       q.innerHTML = this.shown.html;
       ans.textContent = '';
+      this.syncPad();
       card.classList.remove('good', 'bad', 'shake');
       this.t0 = performance.now();
       if (this.onShow) this.onShow(this.item);
     };
     this.digit = d => {
-      if (this.locked || this.buf.length >= 4) return;
+      if (this.locked || this.shown.letter || this.buf.length >= 4) return;
       if (this.buf === '' && d === '0') return;
       this.buf += d; ans.textContent = this.buf;
       if (this.buf.length === String(this.shown.answer).length) this.submit();
     };
+    this.letter = L => { if (this.locked || !this.shown.letter) return; this.buf = L; ans.textContent = L; this.submit(); };
     this.back = () => { if (this.locked) return; this.buf = this.buf.slice(0, -1); ans.textContent = this.buf; };
     this.submit = () => {
       if (this.locked || !this.buf) return;
       this.locked = true;
-      const ok = +this.buf === this.shown.answer;
+      const given = this.shown.letter ? this.buf : +this.buf;
+      const ok = given === this.shown.answer;
       const ms = performance.now() - this.t0;
       record(this.item, ok, ms);
-      onResult(ok, this.item, this.shown, +this.buf, ms);
+      onResult(ok, this.item, this.shown, given, ms);
     };
   }
 
@@ -324,19 +316,16 @@
     return `Validation automatique · objectif : moins de ${fmtS(T().fast)}`;
   }
   const train = new Quiz({
-    q: $('t-q'), ans: $('t-ans'), card: $('t-card'),
+    q: $('t-q'), ans: $('t-ans'), card: $('t-card'), pad: $('t-pad'), lpad: $('t-lpad'),
     onResult(ok, item, shown, given, ms) {
       if (ok) {
         streak++;
         $('t-card').classList.add('good');
         const fast = ms < T().fast;
-        const k = streakNow();
-        $('t-hint').innerHTML = dayJustDone
-          ? `<b>Série du jour validée !</b> ${k} jour${k > 1 ? 's' : ''} d'affilée.`
-          : fast
-            ? `Juste en <b>${fmtS(ms)}</b>${streak >= 3 ? ` · ${streak} de suite` : ''}`
-            : `Juste en <b class="slow">${fmtS(ms)}</b> : trop lent pour compter dans la série du jour.`;
-        setTimeout(train.next, dayJustDone ? 1600 : fast ? 450 : 800);
+        $('t-hint').innerHTML = fast
+          ? `Juste en <b>${fmtS(ms)}</b>${streak >= 3 ? ` · ${streak} de suite` : ''}`
+          : `Juste en <b class="slow">${fmtS(ms)}</b> : encore un peu lent, vise moins de ${fmtS(T().fast)}.`;
+        setTimeout(train.next, fast ? 450 : 800);
       } else {
         streak = 0;
         retry = { item, in: 3 };
@@ -352,7 +341,7 @@
         t.innerHTML = `<h3>${shown.text} = ${shown.answer}</h3>${e.tip}`;
         ex.appendChild(t);
         ex.hidden = false;
-        $('t-pad').hidden = true;
+        train.hidePads();
         $('t-next').hidden = false;
         $('t-next').focus({ preventScroll: true });
       }
@@ -360,17 +349,18 @@
   });
   train.onShow = item => {
     currentTrain = item;
-    $('t-explain').hidden = true; $('t-pad').hidden = false; $('t-next').hidden = true;
+    $('t-explain').hidden = true; train.syncPad(); $('t-next').hidden = true;
     renderMastery();
   };
   $('t-next').addEventListener('click', () => { $('t-hint').textContent = defaultHint(); train.next(); });
   makePad($('t-pad'), train);
+  makeLetterPad($('t-lpad'), train);
 
   // ---------- Chrono ----------
   const DURATION = 60000;
   let chronoOn = false, tEnd = 0, score = 0, tries = 0, okMs = 0, misses = [], raf = 0;
   const chrono = new Quiz({
-    q: $('c-q'), ans: $('c-ans'), card: $('c-card'),
+    q: $('c-q'), ans: $('c-ans'), card: $('c-card'), pad: $('c-pad'), lpad: $('c-lpad'),
     onResult(ok, item, shown, given, ms) {
       tries++;
       if (ok) {
@@ -387,6 +377,7 @@
     }
   });
   makePad($('c-pad'), chrono);
+  makeLetterPad($('c-lpad'), chrono);
 
   function showChrono(which) {
     for (const id of ['c-start', 'c-run', 'c-end']) $(id).hidden = id !== which;
@@ -436,7 +427,7 @@
   $('c-again').addEventListener('click', startChrono);
 
   // ---------- Révision ----------
-  const selected = { sq: '17', cu: '12', tb: '7x8' };
+  const selected = { sq: '17', cu: '12', tb: '7x8', ab: 'R' };
   function renderDetail() {
     const d = $('detail');
     const e = T().explain(selected[state.topic]);
@@ -449,16 +440,14 @@
   }
   function renderRev() {
     const isSq = isList();
-    const s = state.streak;
-    $('rstats').innerHTML = `Maîtrisés : <b>${T().all.filter(it => st(it).box >= 4).length}/${T().all.length}</b>`
-      + ` · Record de série : <b>${s.best}</b> jour${s.best > 1 ? 's' : ''}`;
+    $('rstats').innerHTML = `Sus par cœur, vite et sans erreur : <b>${T().all.filter(it => st(it).box >= 4).length}/${T().all.length}</b>`;
     $('sq-list').hidden = !isSq;
-    for (const t of ['sq', 'cu', 'tb']) $('tricks-' + t).hidden = t !== state.topic;
+    for (const t of ['sq', 'cu', 'tb', 'ab']) $('tricks-' + t).hidden = t !== state.topic;
     $('tb-rev').hidden = isSq; $('rnote').hidden = isSq;
     if (isSq) {
-      $('sq-list').innerHTML = T().all.map(it => { const q = T().question(it);
+      $('sq-list').innerHTML = T().all.map(it => { const c = T().card(it);
         return `<button class="sq" data-it="${it}" aria-pressed="${it === selected[state.topic]}">
-          <span class="dot ${lvl(it)}"></span><span class="n">${q.text}</span><span class="v">${sp(q.answer)}</span>
+          <span class="dot ${lvl(it)}"></span><span class="n">${c.n}</span><span class="v">${c.v}</span>
         </button>`; }).join('');
     } else {
       let h = '<span class="th">×</span>';
@@ -516,7 +505,8 @@
   function setTopic(t) {
     stopChrono();
     state.topic = t; save();
-    document.querySelectorAll('.topic button').forEach(b => b.setAttribute('aria-pressed', b.dataset.topic === t));
+    $('m-title').textContent = TITLES[t];
+    $('sq-list').classList.toggle('ab', t === 'ab');
     streak = 0; retry = null; train.item = null;
     $('t-hint').textContent = defaultHint();
     renderChips(); syncChips();
@@ -524,9 +514,6 @@
     if (view === 'chrono') showChrono('c-start');
     train.next();
   }
-  document.querySelector('.topic').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (b && b.dataset.topic !== state.topic) setTopic(b.dataset.topic);
-  });
 
   // ---------- Clavier physique ----------
   document.addEventListener('keydown', e => {
@@ -540,18 +527,23 @@
     }
     if (!quiz) return;
     if (/^[0-9]$/.test(e.key)) { e.preventDefault(); quiz.digit(e.key); }
+    else if (/^[a-z]$/i.test(e.key) && quiz.shown && quiz.shown.letter) { e.preventDefault(); quiz.letter(e.key.toUpperCase()); }
     else if (e.key === 'Backspace') { e.preventDefault(); quiz.back(); }
     else if (e.key === 'Enter') {
-      if (document.activeElement && document.activeElement.closest('.chips, .topic, .tabs')) return;
+      if (document.activeElement && document.activeElement.closest('.chips, .tabs')) return;
       e.preventDefault();
       if (quiz === train && !$('t-next').hidden) $('t-next').click();
       else quiz.submit();
     }
   });
 
-  // l'app principale arrête le chrono quand on quitte l'onglet Calcul mental
-  window.AMmental = { stop: stopChrono };
+  // pour l'app principale : arrêter le chrono en sortant, ouvrir un thème, résumer la maîtrise
+  window.AMmental = {
+    stop: stopChrono,
+    open(t) { setView('train'); setTopic(t); },
+    summary: () => Object.fromEntries(Object.entries(TOPICS).map(([k, T]) =>
+      [k, { ok: T.all.filter(it => ((state[k].stats[it] || {}).box ?? -1) >= 4).length, total: T.all.length }])),
+  };
 
-  renderDaily();
   setTopic(state.topic);
 })();

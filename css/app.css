@@ -391,3 +391,58 @@ body.focus { padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
 .abviz .on i { color: inherit; }
 .explain:has(.abviz), .detail:has(.abviz) { grid-template-columns: 1fr; }
 .sq-list.ab { grid-template-columns: repeat(5, 1fr); }
+
+/* ===== Ordinateur : barre latérale, écrans en colonnes, exercices centrés ===== */
+.nav-brand { display: none; }
+@media (hover: hover) {
+  .row-link:hover, .rcard:hover, .mode:not(.primary):hover, .opt:hover, .nrow:hover .nrow-t b, .tipc summary:hover .tipc-t { border-color: var(--accent); color: var(--accent-text); }
+  .mode.primary:hover, .big-btn:hover, .btn1:hover, .go:hover { filter: brightness(1.08); }
+  .tabbar button:hover { color: var(--ink); }
+}
+@media (min-width: 1000px) {
+  body { padding: 32px 40px 48px calc(248px + 40px); }
+  body.focus { padding: 20px 40px 24px; }
+  #scr-mental .pad button { height: 48px; }
+  .app { max-width: 1040px; gap: 16px; }
+  .scr { gap: 16px; }
+  .t { font-size: 28px; }
+
+  .tabbar {
+    top: 0; right: auto; bottom: 0; width: 248px;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 28px 16px; border-top: 0; border-right: 1px solid var(--line);
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 24px; font-family: var(--f-display); font-size: 21px; font-weight: 800; }
+  .nav-brand .mark { width: 34px; height: 34px; }
+  .nav-brand .tile { fill: var(--accent); }
+  .nav-brand .glyph { fill: #FFFFFF; }
+  .tabbar button { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; padding: 4px 12px; border-radius: 12px; font-size: 16px; }
+  .tabbar svg { padding: 0; width: 22px; height: 22px; background: none !important; }
+  .tabbar button[aria-current="page"] { background: var(--accent-soft); }
+
+  /* Aujourd'hui : la séance à gauche, priorité et note à droite */
+  #scr-home { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+  #scr-home > .today-h { grid-column: 1 / -1; }
+  #scr-home > .sess { grid-column: 1; grid-row: 2 / span 3; }
+  #scr-home > .row-link { grid-column: 2; }
+  .hello { font-size: 32px; }
+  .today-h .mark { display: none; }
+
+  /* Chapitres et Réflexes en grilles */
+  .chlist { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rgrid { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .rcard { min-height: 140px; padding: 18px; }
+
+  /* Lecture : colonne confortable */
+  #scr-chapter, #scr-fiche, #scr-tips, #scr-prog { width: 100%; max-width: 820px; margin: 0 auto; }
+
+  /* Exercices : centrés, sans pousser les réponses en bas de l'écran */
+  body.focus .app { max-width: 680px; }
+  .runq { min-height: 0; }
+  .runq > .opts, .runq > .sheet, .runq > .pad { margin-top: 8px; }
+  .pad-num, #scr-mental .pad { width: 100%; max-width: 420px; align-self: center; }
+  #scr-mental { min-height: 0; }
+  #v-train .pad, #c-run .pad { margin-top: 8px; }
+  .lpad { max-width: 520px !important; }
+  .kbd-note { margin-top: 4px; }
+}

@@ -354,7 +354,7 @@
     const opts = q.choices.map((c, i) => `<button class="opt" data-i="${i}"><span class="l">${LET[i]}</span><span class="v">${c.h}</span></button>`).join('');
     el.innerHTML = `<div class="runq">${head}${qbox}
       ${blk.timed ? '<p class="nudge" id="r-nudge" hidden>Temps écoulé : réponds quand même, au hasard s\'il le faut. Une réponse ne coûte rien.</p>' : ''}
-      <div class="opts" id="r-opts">${opts}</div></div>`;
+      <div class="opts" id="r-opts">${opts}</div><p class="kbd-note">Clavier : touches A à E (ou 1 à 5) pour répondre, Entrée pour continuer, Échap pour quitter.</p></div>`;
     $('r-opts').onclick = e => { const b = e.target.closest('.opt'); if (b) choose(+b.dataset.i); };
     startClock(blk);
   }
@@ -447,7 +447,7 @@
       <div class="card${a ? (a.ok ? ' good' : ' bad') : ''}"><div class="wq">${it.text}</div>
         <div class="ans" id="r-ans">${a ? (a.ok ? a.v : `<s>${a.v}</s><span class="reveal">${it.a}</span>`) : ''}</div></div>
       <p class="hint">${a ? (a.ok ? `Juste en <b>${fmtS(a.ms)}</b>` : G.AUTO[it.cat].label) : 'Validation automatique dès que le nombre de chiffres est atteint'}</p>
-      ${a && !a.ok ? `<div class="sheet bad">${it.tip ? `<div class="exs">${tipBox(it.tip)}</div>` : ''}<button class="big-btn" id="r-next">Continuer</button></div>` : `<div class="pad pad-num" id="r-pad">${keys}</div>`}</div>`;
+      ${a && !a.ok ? `<div class="sheet bad">${it.tip ? `<div class="exs">${tipBox(it.tip)}</div>` : ''}<button class="big-btn" id="r-next">Continuer</button></div>` : `<div class="pad pad-num" id="r-pad">${keys}</div><p class="kbd-note">Clavier : tape la réponse, Entrée pour valider.</p>`}</div>`;
     if (a) {
       if (a.ok) advanceTimer = setTimeout(next, 450); else $('r-next').onclick = next;
       return;

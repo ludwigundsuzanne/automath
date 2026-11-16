@@ -891,6 +891,92 @@
     const ok = G.TIPS.filter(t => tipStatus(t)[0] === 'good').length;
     return `<div class="box"><p class="eyebrow">Astuces</p><p>${ok} maîtrisée${ok > 1 ? 's' : ''} sur ${G.TIPS.length}</p><button class="btn2 wide-btn" id="p-tips" style="margin-top:8px">Voir la bibliothèque d'astuces</button></div>`;
   }
+  // ---------- Transfert : passer sa progression d'un appareil à l'autre (téléphone ↔ ordinateur) ----------
+  // Le code contient tout le localStorage de l'appli (TAGE MAGE + réflexes), compressé quand le navigateur sait le faire.
+  // Avant un import, la progression de l'appareil est mise de côté pour pouvoir revenir en arrière.
+  const SYNC_KEYS = [KEY, 'carres.v1'], PREV = 'automath.avantImport';
+  const b64 = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const through = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  const snapshot = () => { const d = {}; SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v) d[k] = v; }); return d; };
+  const fmtDay = iso => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  async function exportCode() {
+    const raw = new TextEncoder().encode(JSON.stringify({ app: 'automath', v: 1, at: new Date().toISOString(), data: snapshot() }));
+    return window.CompressionStream ? 'AM1:' + b64(await through(raw, new CompressionStream('gzip'))) : 'AM0:' + b64(raw);
+  }
+  async function readCode(code) {
+    const m = /^AM([01]):([A-Za-z0-9+/=]+)$/.exec(code.replace(/\s+/g, ''));
+    if (!m) throw new Error('Ce n\'est pas un code AutoMath : vérifie que tu l\'as copié en entier.');
+    if (m[1] === '1' && !window.DecompressionStream) throw new Error('Ce navigateur est trop ancien pour lire ce code.');
+    let p;
+    try {
+      let bytes = unb64(m[2]);
+      if (m[1] === '1') bytes = await through(bytes, new DecompressionStream('gzip'));
+      p = JSON.parse(new TextDecoder().decode(bytes));
+      JSON.parse(p.data[KEY]);
+    } catch { throw new Error('Le code est incomplet ou abîmé : recopie-le en entier.'); }
+    if (p.app !== 'automath') throw new Error('Ce code ne vient pas d\'AutoMath.');
+    return p;
+  }
+  function replaceAll(data) {
+    SYNC_KEYS.forEach(k => { if (data[k]) localStorage.setItem(k, data[k]); else localStorage.removeItem(k); });
+    location.reload();
+  }
+  function syncBox() {
+    let prev = null; try { prev = JSON.parse(localStorage.getItem(PREV)); } catch {}
+    return `<div class="box sync"><p class="eyebrow">Transférer ma progression</p>
+      <p class="sub small">Pour passer du téléphone à l'ordinateur (ou l'inverse) : exporte sur l'appareil à jour, puis importe sur l'autre. L'import remplace la progression de l'appareil qui le reçoit.</p>
+      <div class="acts"><button class="btn2" id="sy-exp">Exporter</button><button class="btn2" id="sy-imp">Importer</button></div>
+      <div id="sy-panel" class="sy-panel" hidden></div>
+      ${prev && prev.data ? `<button class="linkish" id="sy-undo">Revenir à la progression d'avant l'import (${fmtDay(prev.at)})</button>` : ''}</div>`;
+  }
+  function bindSync() {
+    const panel = $('sy-panel'), show = h => { panel.hidden = false; panel.innerHTML = h; };
+    $('sy-exp').onclick = async () => {
+      show('<p class="sub small">Préparation du code…</p>');
+      const code = await exportCode(), name = `automath-${dayKey()}.txt`, file = new File([code], name, { type: 'text/plain' });
+      const canShare = navigator.canShare && navigator.canShare({ files: [file] });
+      show(`<p class="sub small">Envoie-toi ce code (message, e-mail…) ou le fichier, puis ouvre « Importer » sur l'autre appareil. Il contient ta progression de maintenant : ${plural(S.total, 'question')}, série de ${plural(streakNow(), 'jour')}.</p>
+        <textarea class="sy-code" id="sy-code" readonly rows="3" aria-label="Code de transfert">${code}</textarea>
+        <div class="acts"><button class="btn1" id="sy-copy">Copier le code</button><button class="btn2" id="sy-file">${canShare ? 'Partager le fichier' : 'Télécharger le fichier'}</button></div>`);
+      $('sy-copy').onclick = async () => {
+        try { await navigator.clipboard.writeText(code); } catch { $('sy-code').select(); document.execCommand('copy'); }
+        $('sy-copy').textContent = 'Code copié';
+      };
+      $('sy-file').onclick = async () => {
+        if (canShare) { try { await navigator.share({ files: [file], title: 'Progression AutoMath' }); } catch {} return; }
+        const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      };
+    };
+    $('sy-imp').onclick = () => {
+      show(`<textarea class="sy-code" id="sy-in" rows="3" placeholder="Colle ici le code exporté depuis l'autre appareil" aria-label="Code à importer"></textarea>
+        <div class="acts"><label class="btn2 file-btn">Choisir un fichier<input type="file" id="sy-f" accept=".txt,text/plain" hidden></label><button class="btn1" id="sy-go">Importer</button></div>
+        <p class="sy-msg" id="sy-msg" role="status"></p>`);
+      const check = async code => {
+        const msg = $('sy-msg'); msg.className = 'sy-msg';
+        try {
+          const p = await readCode(code), d = JSON.parse(p.data[KEY]);
+          show(`<p><b>Progression du ${fmtDay(p.at)}</b> : ${plural(d.total || 0, 'question')}.</p>
+            <p class="sub small">Elle va remplacer celle de cet appareil (${plural(S.total, 'question')}). Tu pourras revenir en arrière juste après si besoin.</p>
+            <div class="acts"><button class="btn2" id="sy-no">Annuler</button><button class="btn1" id="sy-yes">Remplacer</button></div>`);
+          $('sy-no').onclick = () => { panel.hidden = true; };
+          $('sy-yes').onclick = () => {
+            try { localStorage.setItem(PREV, JSON.stringify({ at: new Date().toISOString(), data: snapshot() })); } catch {}
+            replaceAll(p.data);
+          };
+        } catch (err) { msg.className = 'sy-msg bad'; msg.textContent = err.message; }
+      };
+      $('sy-go').onclick = () => check($('sy-in').value);
+      $('sy-f').onchange = async e => { const f = e.target.files[0]; if (f) check(await f.text()); };
+    };
+    const undo = $('sy-undo');
+    if (undo) undo.onclick = () => {
+      show(`<p class="sub small">Remettre la progression qu'avait cet appareil avant l'import ? Ce qui a été fait depuis l'import sera perdu.</p>
+        <div class="acts"><button class="btn2" id="sy-no">Annuler</button><button class="btn1" id="sy-yes">Revenir en arrière</button></div>`);
+      $('sy-no').onclick = () => { panel.hidden = true; };
+      $('sy-yes').onclick = () => { const p = JSON.parse(localStorage.getItem(PREV)); localStorage.removeItem(PREV); replaceAll(p.data); };
+    };
+  }
   const PROG_VIEWS = [['all', 'Résumé'], ['notions', 'Notions'], ['errs', 'Erreurs']];
   let progView = 'all';
   function renderProg() {
@@ -915,6 +1001,7 @@
       </div>
       ${recordsBox()}
       ${tipsBox()}
+      ${syncBox()}
       <div class="reset" id="p-reset"><button class="ghost-btn" id="p-reset-ask">Réinitialiser ma progression TAGE MAGE</button></div>`,
       notions: `<div class="box"><p class="eyebrow">Par chapitre</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Chapitre</th><th class="num">Maîtrise</th><th class="num">Faites</th><th class="num">Temps</th></tr></thead><tbody>${chapRows}</tbody></table></div>
         <p class="sub small">Maîtrise sur les 15 dernières questions : juste en moins de 90 s = 1 point, juste mais lent = 0,6.</p></div>
@@ -930,6 +1017,7 @@
     $('scr-prog').querySelectorAll('[data-pv]').forEach(b => { b.onclick = () => { progView = b.dataset.pv; renderProg(); window.scrollTo(0, 0); }; });
     $('scr-prog').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
     const tl = $('p-tips'); if (tl) tl.onclick = () => go('tips');
+    if ($('sy-exp')) bindSync();
     if ($('p-reset-ask')) $('p-reset-ask').onclick = () => {
       $('p-reset').innerHTML = '<span>Effacer la note, les statistiques, les révisions et la série ? Le calcul mental n\'est pas touché.</span><button class="ghost-btn danger" id="p-yes">Effacer</button><button class="ghost-btn" id="p-no">Annuler</button>';
       $('p-yes').onclick = () => { try { localStorage.removeItem(KEY); } catch {} location.reload(); };

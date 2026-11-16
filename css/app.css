@@ -446,3 +446,14 @@ body.focus { padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
   .lpad { max-width: 520px !important; }
   .kbd-note { margin-top: 4px; }
 }
+
+/* Transfert de progression */
+.sync { display: flex; flex-direction: column; gap: 10px; }
+.sync .eyebrow { margin: 0; }
+.sy-panel { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.sy-panel p { margin: 0; }
+.sy-code { width: 100%; font: 13px/1.4 ui-monospace, monospace; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); resize: vertical; word-break: break-all; }
+.file-btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.sy-msg { margin: 0; font-size: 14px; min-height: 0; }
+.sy-msg.bad { color: var(--bad); }
+.linkish { align-self: flex-start; border: 0; background: none; padding: 6px 0; color: var(--accent-text); font-weight: 600; font-size: 14px; text-decoration: underline; min-height: 44px; }

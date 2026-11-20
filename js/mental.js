@@ -10,7 +10,7 @@
   }
   const saved = load();
   const state = {
-    topic: ['tb', 'cu', 'ab'].includes(saved.topic) ? saved.topic : 'sq',
+    topic: ['tb', 'cu', 'ab', 'rc'].includes(saved.topic) ? saved.topic : 'sq',
     tsel: Array.isArray(saved.tsel) && saved.tsel.length ? saved.tsel : [2, 3, 4, 5, 6, 7, 8, 9],
     daily: saved.daily || { day: '', fast: 0 },          // bonnes réponses rapides du jour
     streak: saved.streak || { count: 0, last: '', best: 0 }, // last = dernier jour où l'objectif a été atteint
@@ -19,6 +19,7 @@
     tb: saved.tb || { stats: {}, best: 0, last: null },
     cu: saved.cu || { stats: {}, best: 0, last: null },
     ab: saved.ab || { stats: {}, best: 0, last: null },
+    rc: saved.rc || { stats: {}, best: 0, last: null },
   };
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
@@ -75,10 +76,14 @@
   }
   const SQ = {
     noun: 'carrés', fast: 4000, items: () => SQ_ITEMS, all: SQ_ITEMS, card: it => ({ n: `${it}²`, v: sp(it * it) }),
-    question(it) { const n = +it; return { html: `<span>${n}</span><sup>2</sup>`, text: `${n}²`, answer: n * n }; },
-    explain(it) {
+    question(it) {
       const n = +it;
-      return { title: `${n}² = ${n * n}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Un carré de ${n} sur ${n} carreaux`), tip: sqTip(n) };
+      if (n > 1 && Math.random() < 0.5) return { html: `<span class="rev">${sp(n * n)} = ?</span><sup>2</sup>`, text: `${sp(n * n)} = ?²`, answer: n, rev: true };
+      return { html: `<span>${n}</span><sup>2</sup>`, text: `${n}²`, answer: n * n };
+    },
+    explain(it, shown) {
+      const n = +it;
+      return { title: `${n}² = ${sp(n * n)}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Un carré de ${n} sur ${n} carreaux`), tip: shown && shown.rev ? sqRootTip(n) : sqTip(n) };
     },
   };
 
@@ -96,10 +101,70 @@
   }
   const CU = {
     noun: 'cubes', fast: 5000, items: () => CU_ITEMS, all: CU_ITEMS, card: it => ({ n: `${it}³`, v: sp(it ** 3) }),
-    question(it) { const n = +it; return { html: `<span>${n}</span><sup>3</sup>`, text: `${n}³`, answer: n ** 3 }; },
-    explain(it) {
+    question(it) {
       const n = +it;
-      return { title: `${n}³ = ${sp(n ** 3)}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Une face de ${n} sur ${n}, empilée ${n} fois`), tip: cuTip(n) };
+      if (n > 1 && Math.random() < 0.5) return { html: `<span class="rev">${sp(n ** 3)} = ?</span><sup>3</sup>`, text: `${sp(n ** 3)} = ?³`, answer: n, rev: true };
+      return { html: `<span>${n}</span><sup>3</sup>`, text: `${n}³`, answer: n ** 3 };
+    },
+    explain(it, shown) {
+      const n = +it;
+      return { title: `${n}³ = ${sp(n ** 3)}`, viz: vizEl(n, n, n > 10 ? 'sq' : null, `Une face de ${n} sur ${n}, empilée ${n} fois`), tip: shown && shown.rev ? cuRootTip(n) : cuTip(n) };
+    },
+  };
+
+  // ---------- Retrouver la racine (sens inverse) ----------
+  const SQ_END = { 0: [0], 1: [1, 9], 4: [2, 8], 5: [5], 6: [4, 6], 9: [3, 7] };
+  const CU_END = { 0: 0, 1: 1, 2: 8, 3: 7, 4: 4, 5: 5, 6: 6, 7: 3, 8: 2, 9: 9 };
+  function sqRootTip(n) {
+    const v = n * n, d = v % 10;
+    if (n < 10) return `<p>Carré à connaître par cœur.</p><span class="calc">${n}² = ${v}</span>`;
+    if (n % 10 === 0) return `<p>${sp(v)} = ${(n / 10) ** 2} suivi de deux zéros, donc ${n / 10}² suivi d'un zéro.</p><span class="calc">${sp(v)} = ${n}²</span>`;
+    const lo = Math.floor(n / 10) * 10, ends = SQ_END[d];
+    let how = `${sp(v)} est entre ${sp(lo * lo)} (${lo}²) et ${sp((lo + 10) ** 2)} (${lo + 10}²)`;
+    if (ends.length > 1) how += `, et ${v < (lo + 5) ** 2 ? 'avant' : 'après'} ${sp((lo + 5) ** 2)} (${lo + 5}²)`;
+    return `<p>${sp(v)} finit par ${d} : la racine finit par ${ends.join(' ou ')}. ${how}.</p><span class="calc">${sp(v)} = ${n}²</span>`;
+  }
+  function cuRootTip(n) {
+    const v = n ** 3, d = v % 10;
+    if (n === 10 || n === 20) return `<p>${sp(v)} = ${(n / 10) ** 3} suivi de trois zéros.</p><span class="calc">${sp(v)} = ${n}³</span>`;
+    const where = n < 10 ? `${sp(v)} est sous 1 000 (10³) : la racine a un seul chiffre` : `${sp(v)} est entre 1 000 (10³) et 8 000 (20³) : la racine est entre 10 et 20`;
+    return `<p>Un cube finit par ${d} seulement si sa racine finit par ${CU_END[d]}. ${where}.</p><span class="calc">${sp(v)} = ${n}³</span>`;
+  }
+
+  // ---------- Thème : reconnaître un carré ou un cube ----------
+  const isSq = x => { const r = Math.round(Math.sqrt(x)); return r * r === x; };
+  const isCu = x => { const r = Math.round(Math.cbrt(x)); return r ** 3 === x; };
+  const RC_CHOICES = ['Carré', 'Cube', 'Les deux', 'Aucun'];
+  const rcKind = x => (isSq(x) && isCu(x) ? 'Les deux' : isSq(x) ? 'Carré' : isCu(x) ? 'Cube' : 'Aucun');
+  // les nombres à reconnaître (carrés de 1 à 25, cubes de 1 à 20) et leurs voisins immédiats comme pièges
+  const RC_TARGETS = [...new Set([...SQ_ITEMS.map(n => n * n), ...CU_ITEMS.map(n => n ** 3)])].sort((a, b) => a - b);
+  const RC_TRAPS = [...new Set(RC_TARGETS.filter(x => x > 4).flatMap(x => [x - 1, x + 1]))].filter(x => !RC_TARGETS.includes(x));
+  const RC_ALL = RC_TARGETS.map(String), RC_ITEMS = [...RC_ALL, ...RC_TRAPS.map(String)];
+  function rcName(x) {
+    const s = isSq(x) ? `${Math.round(Math.sqrt(x))}²` : '', c = isCu(x) ? `${Math.round(Math.cbrt(x))}³` : '';
+    return [s, c].filter(Boolean).join(' = ');
+  }
+  function rcTip(x) {
+    const k = rcKind(x);
+    if (k !== 'Aucun') {
+      const extra = k === 'Les deux' ? ' Un nombre à la fois carré et cube est une puissance 6 : 1, 64, 729, 4 096…' : '';
+      return `<p>${k === 'Cube' ? 'C\'est un cube' : k === 'Carré' ? 'C\'est un carré' : 'C\'est à la fois un carré et un cube'}.${extra}</p><span class="calc">${sp(x)} = ${rcName(x)}</span>`;
+    }
+    const r = Math.floor(Math.sqrt(x)), c = Math.floor(Math.cbrt(x)), d = x % 10;
+    const ends = [2, 3, 7, 8].includes(d) ? `<p>Un carré ne finit jamais par 2, 3, 7 ou 8 : ${sp(x)} ne peut pas être un carré.</p>` : '';
+    return `${ends}<p>Il tombe entre deux carrés et entre deux cubes qui se suivent.</p>
+      <span class="calc">${r}² = ${sp(r * r)} &lt; ${sp(x)} &lt; ${sp((r + 1) ** 2)} = ${r + 1}²</span>
+      <span class="calc">${c}³ = ${sp(c ** 3)} &lt; ${sp(x)} &lt; ${sp((c + 1) ** 3)} = ${c + 1}³</span>`;
+  }
+  const RC = {
+    noun: 'nombres', fast: 3000, items: () => RC_ITEMS, all: RC_ALL, noGrid: true,
+    bias: it => (RC_ALL.includes(it) ? 2 : 1), // autant de vrais carrés ou cubes que de pièges
+    card: it => ({ n: rcName(+it), v: sp(+it) }),
+    question(it) { const x = +it; return { html: `<span class="rev">${sp(x)}</span>`, text: sp(x), answer: rcKind(x), choice: true }; },
+    explain(it) {
+      const x = +it, k = rcKind(x), el = document.createElement('div');
+      el.className = 'rcviz'; el.textContent = k === 'Aucun' ? '✕' : rcName(x);
+      return { title: k === 'Aucun' ? `${sp(x)} : ni carré ni cube` : `${sp(x)} = ${rcName(x)}`, viz: el, tip: rcTip(x) };
     },
   };
 
@@ -170,9 +235,9 @@
       };
     },
   };
-  const TOPICS = { sq: SQ, cu: CU, tb: TB, ab: AB };
-  const NAMES = { sq: 'carrés', cu: 'cubes', tb: 'tables', ab: 'lettres' };
-  const TITLES = { sq: 'Carrés', cu: 'Cubes', tb: 'Tables', ab: 'Alphabet' };
+  const TOPICS = { sq: SQ, cu: CU, tb: TB, ab: AB, rc: RC };
+  const NAMES = { sq: 'carrés', cu: 'cubes', tb: 'tables', ab: 'lettres', rc: 'carrés ou cubes' };
+  const TITLES = { sq: 'Carrés', cu: 'Cubes', tb: 'Tables', ab: 'Alphabet', rc: 'Carré ou cube ?' };
   const isList = () => state.topic !== 'tb'; // carrés, cubes, alphabet : une case par élément
   const T = () => TOPICS[state.topic];
 
@@ -202,7 +267,7 @@
       const it = retry.item; retry = null; return it;
     }
     const pool = items.length > 1 ? items.filter(it => it !== prev) : items;
-    const w = pool.map(it => WEIGHT[st(it).box]);
+    const w = pool.map(it => WEIGHT[st(it).box] * (T().bias ? T().bias(it) : 1));
     let r = Math.random() * w.reduce((a, b) => a + b, 0);
     for (let i = 0; i < pool.length; i++) { if ((r -= w[i]) <= 0) return pool[i]; }
     return pool[pool.length - 1];
@@ -212,6 +277,7 @@
   let currentTrain = null;
   function renderMastery() {
     const m = $('mastery');
+    if (T().noGrid) { m.className = ''; m.innerHTML = ''; return; }
     if (isList()) {
       m.className = 'mastery';
       m.innerHTML = T().all.map(it => { const c = T().card(it);
@@ -276,10 +342,16 @@
     el.addEventListener('click', e => { const b = e.target.closest('button'); if (b) quiz.letter(b.dataset.l); });
   }
 
-  function Quiz({ q, ans, card, pad, lpad, onResult }) {
+  function makeChoicePad(el, quiz) {
+    el.innerHTML = RC_CHOICES.map((c, i) => `<button data-c="${c}"><small>${i + 1}</small>${c}</button>`).join('');
+    el.addEventListener('click', e => { const b = e.target.closest('button'); if (b) quiz.pickChoice(b.dataset.c); });
+  }
+
+  function Quiz({ q, ans, card, pad, lpad, cpad, onResult }) {
     this.item = null; this.shown = null; this.buf = ''; this.locked = false; this.t0 = 0;
-    this.syncPad = () => { const l = !!(this.shown && this.shown.letter); pad.hidden = l; lpad.hidden = !l; };
-    this.hidePads = () => { pad.hidden = true; lpad.hidden = true; };
+    this.syncPad = () => { const s = this.shown || {}; pad.hidden = !!(s.letter || s.choice); lpad.hidden = !s.letter; cpad.hidden = !s.choice; };
+    this.hidePads = () => { pad.hidden = true; lpad.hidden = true; cpad.hidden = true; };
+    this.pickChoice = c => { if (this.locked || !this.shown.choice) return; this.buf = c; ans.textContent = c; this.submit(); };
     this.next = () => {
       this.item = pick(this.item);
       this.shown = T().question(this.item);
@@ -292,6 +364,7 @@
       if (this.onShow) this.onShow(this.item);
     };
     this.digit = d => {
+      if (this.shown.choice) { const c = RC_CHOICES[+d - 1]; if (c) this.pickChoice(c); return; }
       if (this.locked || this.shown.letter || this.buf.length >= 4) return;
       if (this.buf === '' && d === '0') return;
       this.buf += d; ans.textContent = this.buf;
@@ -302,7 +375,7 @@
     this.submit = () => {
       if (this.locked || !this.buf) return;
       this.locked = true;
-      const given = this.shown.letter ? this.buf : +this.buf;
+      const given = this.shown.letter || this.shown.choice ? this.buf : +this.buf;
       const ok = given === this.shown.answer;
       const ms = performance.now() - this.t0;
       record(this.item, ok, ms);
@@ -316,7 +389,7 @@
     return `Validation automatique · objectif : moins de ${fmtS(T().fast)}`;
   }
   const train = new Quiz({
-    q: $('t-q'), ans: $('t-ans'), card: $('t-card'), pad: $('t-pad'), lpad: $('t-lpad'),
+    q: $('t-q'), ans: $('t-ans'), card: $('t-card'), pad: $('t-pad'), lpad: $('t-lpad'), cpad: $('t-cpad'),
     onResult(ok, item, shown, given, ms) {
       if (ok) {
         streak++;
@@ -333,12 +406,12 @@
         $('t-ans').innerHTML = `<s>${given}</s><span class="reveal">${shown.answer}</span>`;
         $('t-hint').textContent = 'Ce calcul reviendra dans quelques questions.';
         const ex = $('t-explain');
-        const e = T().explain(item);
+        const e = T().explain(item, shown);
         ex.innerHTML = '';
         ex.appendChild(e.viz);
         const t = document.createElement('div');
         t.className = 'tip';
-        t.innerHTML = `<h3>${shown.text} = ${shown.answer}</h3>${e.tip}`;
+        t.innerHTML = `<h3>${shown.choice || shown.rev ? e.title : `${shown.text} = ${shown.answer}`}</h3>${e.tip}`;
         ex.appendChild(t);
         ex.hidden = false;
         train.hidePads();
@@ -355,12 +428,13 @@
   $('t-next').addEventListener('click', () => { $('t-hint').textContent = defaultHint(); train.next(); });
   makePad($('t-pad'), train);
   makeLetterPad($('t-lpad'), train);
+  makeChoicePad($('t-cpad'), train);
 
   // ---------- Chrono ----------
   const DURATION = 60000;
   let chronoOn = false, tEnd = 0, score = 0, tries = 0, okMs = 0, misses = [], raf = 0;
   const chrono = new Quiz({
-    q: $('c-q'), ans: $('c-ans'), card: $('c-card'), pad: $('c-pad'), lpad: $('c-lpad'),
+    q: $('c-q'), ans: $('c-ans'), card: $('c-card'), pad: $('c-pad'), lpad: $('c-lpad'), cpad: $('c-cpad'),
     onResult(ok, item, shown, given, ms) {
       tries++;
       if (ok) {
@@ -378,6 +452,7 @@
   });
   makePad($('c-pad'), chrono);
   makeLetterPad($('c-lpad'), chrono);
+  makeChoicePad($('c-cpad'), chrono);
 
   function showChrono(which) {
     for (const id of ['c-start', 'c-run', 'c-end']) $(id).hidden = id !== which;
@@ -427,7 +502,7 @@
   $('c-again').addEventListener('click', startChrono);
 
   // ---------- Révision ----------
-  const selected = { sq: '17', cu: '12', tb: '7x8', ab: 'R' };
+  const selected = { sq: '17', cu: '12', tb: '7x8', ab: 'R', rc: '729' };
   function renderDetail() {
     const d = $('detail');
     const e = T().explain(selected[state.topic]);
@@ -442,7 +517,7 @@
     const isSq = isList();
     $('rstats').innerHTML = `Sus par cœur, vite et sans erreur : <b>${T().all.filter(it => st(it).box >= 4).length}/${T().all.length}</b>`;
     $('sq-list').hidden = !isSq;
-    for (const t of ['sq', 'cu', 'tb', 'ab']) $('tricks-' + t).hidden = t !== state.topic;
+    for (const t of ['sq', 'cu', 'tb', 'ab', 'rc']) $('tricks-' + t).hidden = t !== state.topic;
     $('tb-rev').hidden = isSq; $('rnote').hidden = isSq;
     if (isSq) {
       $('sq-list').innerHTML = T().all.map(it => { const c = T().card(it);
@@ -507,6 +582,7 @@
     state.topic = t; save();
     $('m-title').textContent = TITLES[t];
     $('sq-list').classList.toggle('ab', t === 'ab');
+    $('sq-list').classList.toggle('rc', t === 'rc');
     streak = 0; retry = null; train.item = null;
     $('t-hint').textContent = defaultHint();
     renderChips(); syncChips();

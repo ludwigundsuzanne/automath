@@ -804,14 +804,15 @@
     $('scr-chapter').querySelectorAll('[data-focus]').forEach(b => { b.onclick = () => startFocus(b.dataset.focus); });
   }
   // ---------- Réflexes : le par-cœur (carrés, cubes, tables, alphabet), le sprint et les astuces ----------
-  const REFL = [['sq', 'Carrés', 'de 1 à 25'], ['cu', 'Cubes', 'de 1 à 20'], ['tb', 'Tables', 'de 2 à 9'], ['ab', 'Alphabet', 'A = 1 … Z = 26']];
+  const REFL = [['sq', 'Carrés', 'de 1 à 25, dans les deux sens'], ['cu', 'Cubes', 'de 1 à 20, dans les deux sens'], ['tb', 'Tables', 'de 2 à 9'], ['ab', 'Alphabet', 'A = 1 … Z = 26'],
+    ['rc', 'Carré ou cube ?', 'Les reconnaître d\'un coup d\'œil, pour les suites en logique']];
   function renderRefl() {
     const sum = window.AMmental ? window.AMmental.summary() : {}, good = G.TIPS.filter(t => tipStatus(t)[0] === 'good').length;
     $('scr-refl').innerHTML = `<div><h2 class="t">Réflexes</h2><p class="sub">Le par-cœur qui fait gagner des secondes à chaque question.</p></div>
       <button class="mode primary" id="x-sprint"><b>Sprint mélangé</b><span>3 min chrono · tous les automatismes${S.sprints.best ? ` · record ${S.sprints.best}` : ''}</span></button>
       <div class="rgrid">${REFL.map(([id, name, sub]) => {
         const s = sum[id] || { ok: 0, total: 1 }, p = Math.round(100 * s.ok / s.total);
-        return `<button class="rcard" data-refl="${id}"><b>${name}</b><span>${sub}</span><span class="mbar" aria-hidden="true"><span style="width:${p}%"></span></span><small>${s.ok}/${s.total} sus par cœur</small></button>`;
+        return `<button class="rcard${id === 'rc' ? ' wide' : ''}" data-refl="${id}"><b>${name}</b><span>${sub}</span><span class="mbar" aria-hidden="true"><span style="width:${p}%"></span></span><small>${s.ok}/${s.total} sus par cœur</small></button>`;
       }).join('')}</div>
       <button class="row-link" id="x-tips"><span class="rl-t">Astuces</span><span class="rl-s">${good} maîtrisée${good > 1 ? 's' : ''} sur ${G.TIPS.length} · à lire ou à réviser en cartes</span>${ICON.chev}</button>`;
     $('x-sprint').onclick = startSprint;
